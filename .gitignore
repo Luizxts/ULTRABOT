@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+ENV/
+env/
+
+# Logs
+*.log
+
+# Configs sensíveis
+.env
+railway.json
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# System files
+.DS_Store
+Thumbs.db
