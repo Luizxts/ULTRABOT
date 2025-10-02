@@ -609,28 +609,41 @@ class UltraBotApp:
                 if self.bot.running:
                     return jsonify({'success': False, 'error': 'Bot já está rodando'})
                 
+                # Inicializar analisador se necessário
                 if self.analyser is None:
                     from trader.bybit_analyser import BybitAnalyser
                     self.analyser = BybitAnalyser()
                 
+                # Inicializar Telegram se necessário
                 if not self.telegram_available:
-                    asyncio.run(self.initialize_telegram())
+                    try:
+                        asyncio.run(self.initialize_telegram())
+                    except Exception as e:
+                        logger.warning(f"Telegram não disponível: {e}")
                 
-                success = asyncio.run(self.bot.start())
+                # Iniciar bot
+                try:
+                    success = asyncio.run(self.bot.start())
+                except Exception as e:
+                    logger.error(f"Erro ao iniciar bot: {e}")
+                    return jsonify({'success': False, 'error': f'Falha ao iniciar: {str(e)}'}), 500
                 
                 if success:
                     logger.info("🚀 Bot iniciado via API")
                     
+                    # Notificação Telegram (opcional)
                     if self.telegram_available:
-                        async def send_telegram_msg():
+                        try:
                             from telegram_bot.bot import TelegramBot
                             telegram_bot = TelegramBot()
-                            await telegram_bot.send_message(
-                                "-4977542145", 
-                                "🚀 *ULTRABOT INICIADO*\nModo: SIMULATION\nSaldo: $1000.00\nIntervalo: 10 minutos"
-                            )
-                        try:
-                            asyncio.run(send_telegram_msg())
+                            
+                            async def send_msg():
+                                await telegram_bot.send_message(
+                                    "-4977542145", 
+                                    "🚀 *ULTRABOT INICIADO*\nModo: SIMULATION\nSaldo: $1000.00\nIntervalo: 10 minutos"
+                                )
+                            
+                            asyncio.run(send_msg())
                         except Exception as e:
                             logger.warning(f"⚠️ Não foi possível enviar mensagem Telegram: {e}")
                     
@@ -640,31 +653,40 @@ class UltraBotApp:
                 
             except Exception as e:
                 logger.error(f"Erro ao iniciar bot: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
+                return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
         
         @self.app.route('/api/stop', methods=['POST'])
         def api_stop():
             """Para o bot de trading"""
             try:
-                if self.bot is None or not self.bot.running:
+                if self.bot is None:
+                    return jsonify({'success': False, 'error': 'Bot não está inicializado'})
+                
+                if not self.bot.running:
                     return jsonify({'success': False, 'error': 'Bot não está rodando'})
                 
-                # Parar o bot
+                # Parar o bot de forma segura
                 self.bot.running = False
                 
+                # Obter estatísticas antes de parar
                 bot_status = self.bot.get_status()
                 
+                # Criar mensagem de parada
                 stop_msg = f"⏹️ ULTRABOT PARADO | Trades: {bot_status['trades_today']} | Lucro: ${bot_status['profit_today']:.2f}"
                 logger.info(stop_msg)
+                
+                # Adicionar notificação
                 self.bot.add_notification(stop_msg, "info")
                 
-                if hasattr(self.bot, 'save_history'):
+                # Salvar histórico se existir o método
+                if hasattr(self.bot, 'save_history') and callable(getattr(self.bot, 'save_history')):
                     self.bot.save_history()
                 
                 logger.info("⏹️ Bot parado via API")
                 
+                # Enviar notificação Telegram (opcional)
                 if self.telegram_available:
-                    async def send_telegram_msg():
+                    try:
                         from telegram_bot.bot import TelegramBot
                         telegram_bot = TelegramBot()
                         
@@ -675,17 +697,29 @@ class UltraBotApp:
                             f"Lucro: ${bot_status['profit_today']:.2f}\n"
                             f"Win Rate: {bot_status['win_rate']}%"
                         )
-                        await telegram_bot.send_message("-4977542145", message)
-                    try:
-                        asyncio.run(send_telegram_msg())
+                        
+                        # Executar de forma assíncrona
+                        async def send_msg():
+                            await telegram_bot.send_message("-4977542145", message)
+                        
+                        asyncio.run(send_msg())
+                        
                     except Exception as e:
                         logger.warning(f"⚠️ Não foi possível enviar mensagem Telegram: {e}")
                 
-                return jsonify({'success': True, 'message': 'Bot parado com sucesso!'})
+                return jsonify({
+                    'success': True, 
+                    'message': 'Bot parado com sucesso!',
+                    'stats': {
+                        'trades': bot_status['trades_today'],
+                        'profit': bot_status['profit_today'],
+                        'win_rate': bot_status['win_rate']
+                    }
+                })
                 
             except Exception as e:
                 logger.error(f"Erro ao parar bot: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
+                return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
         
         @self.app.route('/api/reset_stats', methods=['POST'])
         def api_reset_stats():
