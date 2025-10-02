@@ -22,7 +22,7 @@ RISK_PERCENTAGE = 2.0  # 2% por trade
 # =============================================
 # TRADING STRATEGY SETTINGS
 # =============================================
-TRADING_INTERVAL = 600  # 10 minutos em segundos
+TRADING_INTERVAL = 300  # 5 minutos em segundos
 TRADE_PROBABILITY = 0.3  # 30% chance de trade
 WIN_RATE = 0.65  # 65% win rate
 MAX_TRADE_AMOUNT = 50  # Máximo $50 por trade
