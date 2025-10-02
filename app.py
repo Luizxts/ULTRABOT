@@ -19,6 +19,60 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Sistema de estado compartilhado
+class SharedState:
+    def __init__(self):
+        self.state_file = 'bot_state.json'
+    
+    def get_state(self):
+        """Obtém o estado atual do bot"""
+        try:
+            if os.path.exists(self.state_file):
+                with open(self.state_file, 'r') as f:
+                    state = json.load(f)
+                    # Verificar se o estado não está muito antigo (mais de 10 minutos)
+                    last_update = state.get('last_update')
+                    if last_update:
+                        last_dt = datetime.fromisoformat(last_update)
+                        if (datetime.now() - last_dt).total_seconds() > 600:  # 10 minutos
+                            return {'running': False, 'is_stale': True}
+                    return {**state, 'is_stale': False}
+        except Exception as e:
+            logger.warning(f"⚠️ Não foi possível carregar estado compartilhado: {e}")
+        
+        # Estado padrão
+        return {
+            'running': False,
+            'started_at': None,
+            'trades_today': 0,
+            'profit_today': 0.0,
+            'last_update': datetime.now().isoformat(),
+            'is_stale': False
+        }
+    
+    def set_state(self, running, trades=0, profit=0.0):
+        """Define o estado do bot"""
+        state = {
+            'running': running,
+            'started_at': datetime.now().isoformat() if running else None,
+            'trades_today': trades,
+            'profit_today': profit,
+            'last_update': datetime.now().isoformat(),
+            'is_stale': False
+        }
+        
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump(state, f, indent=2)
+            logger.info(f"💾 Estado compartilhado atualizado: running={running}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Erro ao salvar estado compartilhado: {e}")
+            return False
+
+# Instância global do estado compartilhado
+shared_state = SharedState()
+
 class UltraBotApp:
     def __init__(self):
         self.app = Flask(__name__)
@@ -30,9 +84,16 @@ class UltraBotApp:
     def setup_routes(self):
         @self.app.route('/')
         def index():
+            # Verificar estado compartilhado primeiro
+            global_state = shared_state.get_state()
+            bot_running_global = global_state.get('running', False)
+            
             bot_running = getattr(self.bot, 'running', False) if self.bot else False
             bot_mode = getattr(self.bot, 'mode', 'CONSERVATIVE') if self.bot else 'CONSERVATIVE'
             real_balance = getattr(self.analyser, 'last_balance', 18.34) if self.analyser else 18.34
+            
+            # Estado real considera ambos (web e compartilhado)
+            actual_running = bot_running or bot_running_global
             
             # Obter estatísticas do bot se estiver rodando
             if self.bot:
@@ -64,6 +125,15 @@ class UltraBotApp:
                 notifications_count = 0
                 recent_trades = []
                 recent_notifications = []
+            
+            # Informação de sincronização
+            sync_info = ""
+            if global_state.get('is_stale'):
+                sync_info = " | ⚠️ Estado desatualizado"
+            elif bot_running_global and not bot_running:
+                sync_info = " | 🔀 Controlado via Telegram"
+            elif not bot_running_global and bot_running:
+                sync_info = " | 🌐 Controlado via Web"
             
             return render_template_string('''
 <!DOCTYPE html>
@@ -241,6 +311,16 @@ class UltraBotApp:
             font-size: 12px;
             color: #00ff88;
         }
+        .sync-info {
+            background: rgba(147, 51, 234, 0.1);
+            border: 1px solid #9333ea;
+            border-radius: 8px;
+            padding: 8px;
+            margin: 5px 0;
+            font-size: 11px;
+            color: #c084fc;
+            text-align: center;
+        }
         .tab-container {
             margin: 20px 0;
         }
@@ -287,6 +367,12 @@ class UltraBotApp:
         <div class="discrepancy-warning">
             ⚠️ <strong>DIFERENÇA DE SALDO</strong><br>
             Bybit: ${{ debug.real_balance }} vs Bot: ${{ "%.2f"|format(balance.total) }}
+        </div>
+        {% endif %}
+        
+        {% if debug.sync_info %}
+        <div class="sync-info">
+            {{ debug.sync_info }}
         </div>
         {% endif %}
         
@@ -516,7 +602,7 @@ class UltraBotApp:
             notifications=recent_notifications,
             debug={
                 'mode': 'SIMULADO',
-                'bot_running': bot_running,
+                'bot_running': actual_running,
                 'bot_mode': bot_mode,
                 'telegram_status': 'ATIVO' if self.telegram_available else 'NÃO DISPONÍVEL',
                 'real_balance': "%.2f" % real_balance,
@@ -524,7 +610,8 @@ class UltraBotApp:
                 'show_discrepancy': abs(real_balance - total_balance) > 1.0,
                 'next_trade_in': next_trade_in,
                 'notifications_count': notifications_count,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M')
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                'sync_info': sync_info
             })
         
         @self.app.route('/api/balance')
@@ -555,11 +642,17 @@ class UltraBotApp:
         def api_status():
             """Endpoint para status do sistema"""
             bot_status = self.bot.get_status() if self.bot else {}
+            global_state = shared_state.get_state()
+            
+            # Estado real considera ambos
+            actual_running = bot_status.get('running', False) or global_state.get('running', False)
+            
             return jsonify({
-                'bot_running': getattr(self.bot, 'running', False) if self.bot else False,
+                'bot_running': actual_running,
                 'telegram_available': self.telegram_available,
                 'mode': 'SIMULATION',
                 'bot_status': bot_status,
+                'global_state': global_state,
                 'status': 'OPERATIONAL'
             })
         
@@ -606,6 +699,11 @@ class UltraBotApp:
                     from trader.core import UltraBot
                     self.bot = UltraBot()
                 
+                # Verificar estado atual
+                current_state = shared_state.get_state()
+                if current_state.get('running'):
+                    return jsonify({'success': False, 'error': 'Bot já está rodando (via Telegram)'})
+                
                 if self.bot.running:
                     return jsonify({'success': False, 'error': 'Bot já está rodando'})
                 
@@ -631,6 +729,9 @@ class UltraBotApp:
                 if success:
                     logger.info("🚀 Bot iniciado via API")
                     
+                    # Atualizar estado compartilhado
+                    shared_state.set_state(True, self.bot.trades_today, self.bot.profit_today)
+                    
                     # Notificação Telegram (opcional)
                     if self.telegram_available:
                         try:
@@ -640,14 +741,18 @@ class UltraBotApp:
                             async def send_msg():
                                 await telegram_bot.send_message(
                                     "-4977542145", 
-                                    "🚀 *ULTRABOT INICIADO*\nModo: SIMULATION\nSaldo: $1000.00\nIntervalo: 10 minutos"
+                                    "🌐 *ULTRABOT INICIADO VIA WEB*\n"
+                                    "Modo: SIMULATION\n"
+                                    "Saldo: $1000.00\n"
+                                    "Intervalo: 10 minutos\n"
+                                    "✅ Estado sincronizado com Telegram"
                                 )
                             
                             asyncio.run(send_msg())
                         except Exception as e:
                             logger.warning(f"⚠️ Não foi possível enviar mensagem Telegram: {e}")
                     
-                    return jsonify({'success': True, 'message': 'Bot iniciado com sucesso!'})
+                    return jsonify({'success': True, 'message': 'Bot iniciado com sucesso! (Estado sincronizado com Telegram)'})
                 else:
                     return jsonify({'success': False, 'error': 'Falha ao iniciar bot'})
                 
@@ -662,7 +767,9 @@ class UltraBotApp:
                 if self.bot is None:
                     return jsonify({'success': False, 'error': 'Bot não está inicializado'})
                 
-                if not self.bot.running:
+                # Verificar estado atual
+                current_state = shared_state.get_state()
+                if not current_state.get('running') and not self.bot.running:
                     return jsonify({'success': False, 'error': 'Bot não está rodando'})
                 
                 # Parar o bot de forma segura
@@ -678,6 +785,9 @@ class UltraBotApp:
                 # Adicionar notificação
                 self.bot.add_notification(stop_msg, "info")
                 
+                # Atualizar estado compartilhado
+                shared_state.set_state(False, bot_status['trades_today'], bot_status['profit_today'])
+                
                 # Salvar histórico se existir o método
                 if hasattr(self.bot, 'save_history') and callable(getattr(self.bot, 'save_history')):
                     self.bot.save_history()
@@ -691,11 +801,12 @@ class UltraBotApp:
                         telegram_bot = TelegramBot()
                         
                         message = (
-                            f"⏹️ *ULTRABOT PARADO*\n"
+                            f"🌐 *ULTRABOT PARADO VIA WEB*\n"
                             f"Trades hoje: {bot_status['trades_today']}\n"
                             f"W/L: {bot_status['wins_today']}/{bot_status['losses_today']}\n"
                             f"Lucro: ${bot_status['profit_today']:.2f}\n"
-                            f"Win Rate: {bot_status['win_rate']}%"
+                            f"Win Rate: {bot_status['win_rate']}%\n"
+                            f"✅ Estado sincronizado com Telegram"
                         )
                         
                         # Executar de forma assíncrona
@@ -709,7 +820,7 @@ class UltraBotApp:
                 
                 return jsonify({
                     'success': True, 
-                    'message': 'Bot parado com sucesso!',
+                    'message': 'Bot parado com sucesso! (Estado sincronizado com Telegram)',
                     'stats': {
                         'trades': bot_status['trades_today'],
                         'profit': bot_status['profit_today'],
@@ -741,11 +852,16 @@ class UltraBotApp:
         def health():
             """Health check endpoint"""
             bot_status = self.bot.get_status() if self.bot else {}
+            global_state = shared_state.get_state()
+            
+            actual_running = bot_status.get('running', False) or global_state.get('running', False)
+            
             return jsonify({
                 'status': 'healthy', 
                 'service': 'ultrabot_pro',
-                'bot_running': bot_status.get('running', False),
-                'trades_today': bot_status.get('trades_today', 0)
+                'bot_running': actual_running,
+                'trades_today': bot_status.get('trades_today', 0),
+                'global_state': global_state
             })
 
     async def initialize(self):
