@@ -3,7 +3,7 @@ import asyncio
 import os
 from telegram import Bot
 
-# ✅ CORRETO - Usando variáveis de ambiente diretamente
+# ✅ CONFIGURAÇÃO SEGURA
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
@@ -18,7 +18,7 @@ class TelegramBot:
     def initialize_bot(self):
         """Inicializa o bot do Telegram"""
         try:
-            if not self.token or self.token == 'your_bot_token_here':
+            if not self.token or self.token == '8444269740:AAE2dlSXozV4cIGNMMs72APIDcrYBvIq31M':
                 self.logger.warning("❌ Token do Telegram não configurado")
                 return
                 
@@ -28,13 +28,21 @@ class TelegramBot:
             self.logger.error(f"❌ Erro ao inicializar Telegram: {e}")
     
     def send_message(self, message):
-        """Envia mensagem para o Telegram (síncrono)"""
+        """Envia mensagem para o Telegram (CORRIGIDO)"""
         try:
-            if self.bot and self.chat_id:
-                # Usa asyncio para enviar mensagem
-                asyncio.get_event_loop().run_until_complete(
-                    self._async_send_message(message)
-                )
+            if not self.bot or not self.chat_id:
+                return
+                
+            # ✅ CORREÇÃO: Cria novo event loop se necessário
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # ✅ ENVIO SÍNCRONO CORRETO
+            loop.run_until_complete(self._async_send_message(message))
+            
         except Exception as e:
             self.logger.error(f"❌ Erro ao enviar mensagem Telegram: {e}")
     
@@ -46,6 +54,6 @@ class TelegramBot:
                 text=message,
                 parse_mode='HTML'
             )
-            self.logger.info("📱 Mensagem Telegram enviada")
+            self.logger.info("📱 Mensagem Telegram enviada com sucesso")
         except Exception as e:
             self.logger.error(f"❌ Erro no envio async: {e}")
