@@ -1,6 +1,7 @@
 requests==2.31.0
 ccxt==4.1.77
-pandas==2.2.0
+# Use esta versão no requirements.txt
+pandas-ta==0.3.14
 numpy==1.26.0
 python-dotenv==1.0.0
 scikit-learn==1.4.0
