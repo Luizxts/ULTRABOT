@@ -1,17 +1,17 @@
-# config.py - CONFIGURAÇÕES AVANÇADAS DO ULTRABOT PRO MAX
+# config.py - CONFIGURAÇÕES AVANÇADAS COM SUPORTE A VARIÁVEIS DE AMBIENTE
 import os
 from datetime import datetime
 
 # =============================================================================
-# CONFIGURAÇÕES BYBIT API
+# CONFIGURAÇÕES BYBIT API (COM VARIÁVEIS DE AMBIENTE)
 # =============================================================================
 BYBIT_CONFIG = {
-    # 🔐 CREDENCIAIS API (OBRIGATÓRIO - COLOCAR SUAS CHAVES AQUI)
-    "api_key": "Kdm4ezSuMHltXPVUmV",  # 👈 SUBSTITUIR PELA SUA API KEY
-    "api_secret": "lElWwbpWFyElnxoCo1Py8gpAh0aFuYQhCXPq",  # 👈 SUBSTITUIR PELO SEU SECRET
+    # 🔐 CREDENCIAIS API (obtidas de variáveis de ambiente)
+    "api_key": os.getenv('BYBIT_API_KEY', 'Kdm4ezSuMHltXPVUmV'),  # 👈 Railway vai injetar
+    "api_secret": os.getenv('BYBIT_API_SECRET', 'lElWwbpWFyElnxoCo1Py8gpAh0aFuYQhCXPq'),  # 👈 Railway vai injetar
     
     # 🌐 CONFIGURAÇÕES DE REDE
-    "testnet": True,  # True = Testnet, False = Mainnet (NUNCA USE MAINNET AINDA)
+    "testnet": os.getenv('BYBIT_TESTNET', 'true').lower() == 'true',  # Sempre testnet no Railway
     "base_url": "https://api-testnet.bybit.com",
     
     # 📈 CONFIGURAÇÕES DE TRADING
@@ -34,7 +34,7 @@ BOT_CONFIG = {
     "bot_name": "ULTRABOT PRO MAX",
     "version": "3.0",
     "update_interval": 30,        # Segundos entre análises
-    "mode": "BYBIT_TESTNET",      # BYBIT_TESTNET, BYBIT_MAINNET, SIMULATION
+    "mode": os.getenv('BOT_MODE', 'BYBIT_TESTNET'),  # Modo do Railway
     
     # 🤖 CONFIGURAÇÕES IA
     "ia_enabled": True,
@@ -67,11 +67,11 @@ SECURITY_CONFIG = {
 # CONFIGURAÇÕES DE LOG E MONITORAMENTO
 # =============================================================================
 LOG_CONFIG = {
-    "log_level": "INFO",          # DEBUG, INFO, WARNING, ERROR
-    "log_to_file": True,
+    "log_level": os.getenv('LOG_LEVEL', 'INFO'),  # Do Railway
+    "log_to_file": False,         # No Railway, não salvar em arquivo
     "log_filename": "ultrabot_pro_max.log",
     "max_log_size": 50,           # MB
-    "log_colors": True,           # Cores no console
+    "log_colors": False,          # No Railway, sem cores
 }
 
 # =============================================================================
@@ -98,7 +98,7 @@ def validate_config():
     
     for field in required_fields:
         if BYBIT_CONFIG[field].startswith("SUA_") or BYBIT_CONFIG[field].startswith("SEU_"):
-            raise ValueError(f"❌ CONFIGURE O CAMPO: {field} - Edite o config.py com suas credenciais Bybit")
+            raise ValueError(f"❌ CONFIGURE O CAMPO: {field} - Configure as variáveis BYBIT_API_KEY e BYBIT_API_SECRET no Railway")
     
     # Validar valores de risco
     if BYBIT_CONFIG["risk_per_trade"] > 0.05:
@@ -112,6 +112,7 @@ def validate_config():
     print(f"🌐 MODO: {BOT_CONFIG['mode']}")
     print(f"💰 SALDO INICIAL: ${BYBIT_CONFIG['initial_balance']:.2f}")
     print(f"🎯 RISCO POR TRADE: {BYBIT_CONFIG['risk_per_trade']*100}%")
+    print(f"🔐 TESTNET: {BYBIT_CONFIG['testnet']}")
     
     return True
 
@@ -121,8 +122,9 @@ if __name__ == "__main__":
         validate_config()
     except ValueError as e:
         print(f"❌ ERRO NA CONFIGURAÇÃO: {e}")
-        print("\n🔧 INSTRUÇÕES:")
-        print("1. Abra o arquivo config.py")
-        print("2. Edite as linhas com 'SUA_API_KEY_AQUI' e 'SEU_SECRET_AQUI'")
-        print("3. Cole suas credenciais da Bybit Testnet")
-        print("4. Salve o arquivo e execute novamente")
+        print("\n🔧 CONFIGURAÇÃO NO RAILWAY:")
+        print("1. Vá em Variables no seu projeto Railway")
+        print("2. Adicione BYBIT_API_KEY com sua API Key")
+        print("3. Adicione BYBIT_API_SECRET com seu Secret")
+        print("4. Adicione BYBIT_TESTNET = true")
+        print("5. Adicione BOT_MODE = BYBIT_TESTNET")
