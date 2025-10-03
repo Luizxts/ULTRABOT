@@ -1,7 +1,11 @@
 import logging
 import asyncio
+import os
 from telegram import Bot
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+# ✅ CORRETO - Usando variáveis de ambiente diretamente
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 class TelegramBot:
     def __init__(self):
@@ -14,6 +18,10 @@ class TelegramBot:
     def initialize_bot(self):
         """Inicializa o bot do Telegram"""
         try:
+            if not self.token or self.token == 'your_bot_token_here':
+                self.logger.warning("❌ Token do Telegram não configurado")
+                return
+                
             self.bot = Bot(token=self.token)
             self.logger.info("✅ Telegram bot inicializado com sucesso")
         except Exception as e:
@@ -38,6 +46,6 @@ class TelegramBot:
                 text=message,
                 parse_mode='HTML'
             )
-            self.logger.info(f"📱 Mensagem Telegram enviada")
+            self.logger.info("📱 Mensagem Telegram enviada")
         except Exception as e:
             self.logger.error(f"❌ Erro no envio async: {e}")
