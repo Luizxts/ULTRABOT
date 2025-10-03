@@ -32,7 +32,7 @@ HTML_TEMPLATE = """
     <title>🤖 ULTRABOT PRO - TRADING AUTÔNOMO</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="30"> <!-- ⬅️ AUTO-REFRESH 30s -->
+    <meta http-equiv="refresh" content="30">
     <style>
         :root {
             --primary: #00ff88;
@@ -249,6 +249,11 @@ HTML_TEMPLATE = """
             color: rgba(255,255,255,0.5);
             margin-top: 10px;
         }
+        
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -264,19 +269,19 @@ HTML_TEMPLATE = """
                 <div class="stats-grid">
                     <div class="stat-item">
                         <div>Status</div>
-                        <div class="stat-item">{{ '🟢 RODANDO' if status.running else '🔴 PARADO' }}</div>
+                        <div class="stat-value">{{ '🟢 RODANDO' if status.running else '🔴 PARADO' }}</div>
                     </div>
                     <div class="stat-item">
                         <div>Modo</div>
-                        <div class="stat-item">{{ '💰 REAL' if status.real_trading else '🎮 SIMULADO' }}</div>
+                        <div class="stat-value">{{ '💰 REAL' if status.real_trading else '🎮 SIMULADO' }}</div>
                     </div>
                     <div class="stat-item">
                         <div>Análises</div>
-                        <div class="stat-item">{{ status.trade_count }}</div>
+                        <div class="stat-value">{{ status.analysis_count }}</div>
                     </div>
                     <div class="stat-item">
                         <div>Lucro Total</div>
-                        <div class="stat-item {{ 'profit-positive' if status.total_profit|float > 0 else 'profit-negative' }}">${{ status.total_profit }}</div>
+                        <div class="stat-value {{ 'profit-positive' if status.total_profit|float > 0 else 'profit-negative' }}">${{ status.total_profit }}</div>
                     </div>
                 </div>
             </div>
@@ -322,11 +327,11 @@ HTML_TEMPLATE = """
         
         <div style="text-align: center; margin: 25px 0;">
             {% if not status.running %}
-            <button class="btn start" onclick="startBot()">
+            <button class="btn start" onclick="startBot()" id="startBtn">
                 ▶️ Iniciar Bot
             </button>
             {% else %}
-            <button class="btn stop" onclick="stopBot()">
+            <button class="btn stop" onclick="stopBot()" id="stopBtn">
                 ⏹️ Parar Bot
             </button>
             {% endif %}
@@ -337,7 +342,7 @@ HTML_TEMPLATE = """
         <div class="card">
             <h3>📈 HISTÓRICO DE TRADES RECENTES</h3>
             <div class="trades-grid">
-                {% for trade in trades[-6:]|reverse %}
+                {% for trade in trades[-6:] %}
                 <div class="trade-item {{ 'trade-win' if trade.profit > 0 else 'trade-loss' }}">
                     <strong>{{ trade.symbol }}</strong> • {{ trade.side }}<br>
                     <span style="color: {{ '#00ff88' if trade.profit > 0 else '#ff4444' }};">
@@ -366,57 +371,195 @@ HTML_TEMPLATE = """
         </div>
     </div>
     
+    <!-- Modal de Confirmação Trading Real -->
+    <div id="realTradingModal" class="confirmation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000;">
+        <div class="modal-content" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a2e; padding: 30px; border-radius: 15px; text-align: center; border: 2px solid #ff9900;">
+            <h2>⚠️ ALERTA DE RISCO ⚠️</h2>
+            <p><strong>Você está prestes a ativar o MODO REAL</strong></p>
+            <p>🔸 Serão utilizados fundos REAIS da sua conta</p>
+            <p>🔸 Risco de PERDA FINANCEIRA real</p>
+            <p>🔸 Saldo atual: <strong>$18.34</strong></p>
+            <p>🔸 Máximo por trade: <strong>$50.00</strong></p>
+            
+            <div style="margin: 20px 0;">
+                <label>
+                    <input type="checkbox" id="riskCheckbox">
+                    Eu entendo os riscos e desejo continuar
+                </label>
+            </div>
+            
+            <div>
+                <button class="btn stop" onclick="hideRealTradingConfirmation()">Cancelar</button>
+                <button class="btn real-mode" id="confirmRealBtn" disabled onclick="activateRealTrading()">
+                    🚀 ATIVAR TRADING REAL
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <script>
+        // ✅ FUNÇÕES CORRIGIDAS - SEM ERROS
         function startBot() {
+            console.log("🎯 Tentando iniciar bot...");
+            const btn = document.getElementById('startBtn');
+            if (btn) btn.classList.add('loading');
+            
             fetch('/start', { 
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ real_trading: {{ 'true' if status.real_trading else 'false' }} })
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    real_trading: {{ 'true' if status.real_trading else 'false' }} 
+                })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('🤖 Bot iniciado com sucesso!', 'success');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showNotification('❌ Erro: ' + data.message, 'error');
+            .then(response => {
+                console.log("📡 Resposta recebida:", response);
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
                 }
+                return response.json();
+            })
+            .then(data => {
+                console.log("✅ Dados recebidos:", data);
+                if (data.success) {
+                    alert('🤖 Bot iniciado com sucesso!');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('❌ Erro: ' + data.message);
+                    if (btn) btn.classList.remove('loading');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro fetch:', error);
+                alert('❌ Erro de conexão. Recarregue a página e tente novamente.');
+                if (btn) btn.classList.remove('loading');
             });
         }
         
         function stopBot() {
-            fetch('/stop', { method: 'POST' })
+            console.log("🛑 Tentando parar bot...");
+            const btn = document.getElementById('stopBtn');
+            if (btn) btn.classList.add('loading');
+            
+            fetch('/stop', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('🛑 Bot parado!');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('❌ Erro: ' + data.message);
+                    if (btn) btn.classList.remove('loading');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro fetch:', error);
+                alert('❌ Erro de conexão.');
+                if (btn) btn.classList.remove('loading');
+            });
+        }
+        
+        function showRealTradingConfirmation() {
+            document.getElementById('realTradingModal').style.display = 'block';
+        }
+        
+        function hideRealTradingConfirmation() {
+            document.getElementById('realTradingModal').style.display = 'none';
+        }
+        
+        function switchToSimulated() {
+            if (confirm('Deseja voltar para o modo SIMULADO?')) {
+                fetch('/switch_mode', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ real_trading: false })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('🎮 Modo simulado ativado!');
+                        location.reload();
+                    }
+                });
+            }
+        }
+        
+        function activateRealTrading() {
+            fetch('/switch_mode', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    },
+                body: JSON.stringify({ real_trading: true })
+            })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showNotification('🛑 Bot parado!', 'warning');
-                    setTimeout(() => location.reload(), 1000);
+                    alert('🚀 TRADING REAL ATIVADO! Use com cuidado!');
+                    location.reload();
                 }
             });
         }
         
-        function showNotification(message, type) {
-            // Implementar notificação estilo profissional
-            alert(message);
-        }
+        // Atualiza logs a cada 30 segundos
+        setInterval(() => {
+            fetch('/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) {
+                        logContainer.innerHTML = data.logs;
+                        logContainer.scrollTop = logContainer.scrollHeight;
+                    }
+                })
+                .catch(error => console.log('⚠️ Erro ao atualizar logs:', error));
+        }, 30000);
         
-        // Atualiza a hora da última atualização
-        function updateLastUpdateTime() {
-            const now = new Date();
-            document.getElementById('lastUpdate').textContent = 
-                now.toLocaleTimeString() + ' ' + now.toLocaleDateString();
-        }
-        
-        // Atualiza a cada 30 segundos (backup do auto-refresh do meta)
+        // Atualiza status a cada 30 segundos
         setInterval(() => {
             fetch('/status')
                 .then(response => response.json())
                 .then(data => {
                     updateLastUpdateTime();
-                });
+                })
+                .catch(error => console.log('⚠️ Erro ao atualizar status:', error));
         }, 30000);
         
-        updateLastUpdateTime();
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const element = document.getElementById('lastUpdate');
+            if (element) {
+                element.textContent = now.toLocaleTimeString() + ' ' + now.toLocaleDateString();
+            }
+        }
+        
+        // Controle do checkbox de risco
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkbox = document.getElementById('riskCheckbox');
+            const confirmBtn = document.getElementById('confirmRealBtn');
+            
+            if (checkbox && confirmBtn) {
+                checkbox.addEventListener('change', function() {
+                    confirmBtn.disabled = !this.checked;
+                });
+            }
+            
+            updateLastUpdateTime();
+            console.log('🚀 ULTRABOT PRO - Interface carregada');
+        });
     </script>
 </body>
 </html>
@@ -429,6 +572,7 @@ def index():
     
     status = {
         'running': trading_bot.is_running if trading_bot else False,
+        'analysis_count': trading_bot.analysis_count if trading_bot else 0,
         'trade_count': trading_bot.trade_count if trading_bot else 0,
         'total_profit': f"{trading_bot.total_profit:.2f}" if trading_bot else "0.00",
         'real_trading': real_trading_mode,
@@ -440,17 +584,104 @@ def index():
     
     return render_template_string(HTML_TEMPLATE, status=status, logs=system_logs[-30:], trades=trade_history[-10:])
 
+@app.route('/start', methods=['POST'])
+def start_bot():
+    """Inicia o bot"""
+    global trading_bot, bot_thread, real_trading_mode
+    
+    try:
+        data = request.get_json()
+        real_trading = data.get('real_trading', False) if data else real_trading_mode
+        
+        if trading_bot and trading_bot.is_running:
+            return jsonify({'success': False, 'message': 'Bot já está rodando'})
+        
+        # Inicializa bots
+        telegram_bot = TelegramBot()
+        trading_bot = TradingBot(telegram_bot, real_trading=real_trading)
+        
+        # Inicia em thread separada
+        bot_thread = threading.Thread(target=trading_bot.start_bot)
+        bot_thread.daemon = True
+        bot_thread.start()
+        
+        add_log("🤖 Bot iniciado via interface web", "info")
+        add_log(f"💼 Modo: {'REAL' if real_trading else 'SIMULADO'}", "info")
+        add_log("🧠 IA ativada e aprendendo", "info")
+        
+        return jsonify({'success': True, 'message': 'Bot iniciado com sucesso'})
+        
+    except Exception as e:
+        error_msg = f"❌ Erro ao iniciar bot: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/stop', methods=['POST'])
+def stop_bot():
+    """Para o bot"""
+    global trading_bot
+    
+    try:
+        if trading_bot:
+            trading_bot.stop_bot()
+            add_log("🛑 Bot parado pelo usuário", "warning")
+            return jsonify({'success': True, 'message': 'Bot parado com sucesso'})
+        else:
+            return jsonify({'success': False, 'message': 'Nenhum bot ativo'})
+            
+    except Exception as e:
+        error_msg = f"❌ Erro ao parar bot: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/switch_mode', methods=['POST'])
+def switch_mode():
+    """Alterna entre modo real e simulado"""
+    global trading_bot, real_trading_mode, bot_thread
+    
+    try:
+        data = request.get_json()
+        new_mode = data.get('real_trading', False)
+        
+        # Para o bot se estiver rodando
+        if trading_bot and trading_bot.is_running:
+            trading_bot.stop_bot()
+            time.sleep(2)
+        
+        real_trading_mode = new_mode
+        
+        mode_text = "REAL 💰" if new_mode else "SIMULADO 🎮"
+        add_log(f"🔄 Modo alterado para: {mode_text}", "info")
+        
+        return jsonify({'success': True, 'message': f'Modo alterado para {mode_text}'})
+        
+    except Exception as e:
+        error_msg = f"❌ Erro ao alterar modo: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/logs')
+def get_logs():
+    """Retorna logs atualizados"""
+    logs_html = ""
+    for log in system_logs[-30:]:
+        logs_html += f'<div class="log-entry log-{log["type"]}">[{log["time"]}] {log["message"]}</div>'
+    
+    return jsonify({'logs': logs_html})
+
 @app.route('/status')
 def get_status():
     """Retorna status atual para AJAX"""
     global trading_bot
-    return jsonify({
+    status = {
         'running': trading_bot.is_running if trading_bot else False,
+        'analysis_count': trading_bot.analysis_count if trading_bot else 0,
         'trade_count': trading_bot.trade_count if trading_bot else 0,
-        'total_profit': f"{trading_bot.total_profit:.2f}" if trading_bot else "0.00"
-    })
-
-# ... (restante do app.py permanece igual - start, stop, switch_mode, logs)
+        'total_profit': f"{trading_bot.total_profit:.2f}" if trading_bot else "0.00",
+        'consecutive_wins': trading_bot.consecutive_wins if trading_bot else 0,
+        'consecutive_losses': trading_bot.consecutive_losses if trading_bot else 0,
+    }
+    return jsonify(status)
 
 def add_log(message, log_type="info", trade_data=None):
     """Adiciona log ao sistema"""
@@ -466,7 +697,7 @@ def add_log(message, log_type="info", trade_data=None):
     system_logs.append(log_entry)
     
     # Se for um trade, adiciona ao histórico
-    if trade_data and "TRADE" in message:
+    if trade_data and ("TRADE" in message or "SUCESSO" in message or "RESULTADO" in message):
         trade_history.append({
             "time": timestamp,
             "symbol": trade_data.get("symbol", "N/A"),
