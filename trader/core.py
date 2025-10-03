@@ -43,41 +43,46 @@ class TradingBot:
     
     def run_trading_cycle(self):
         """Executa ciclos de trading a cada 5 minutos"""
+        cycle_count = 0
         while self.is_running:
             try:
-                self.trade_count += 1
+                cycle_count += 1
+                self.trade_count = cycle_count
                 self.current_pair = random.choice(TRADING_PAIRS)
                 
                 # ✅ PENSAMENTOS DA IA EM TEMPO REAL
                 market_data = self.get_market_data(self.current_pair)
                 ai_thoughts = self.ai_brain.get_ai_thoughts(self.current_pair, market_data)
                 
-                self.logger.info(f"🔍 Análise #{self.trade_count} - {self.current_pair}")
+                self.logger.info(f"🔍 Análise #{cycle_count} - {self.current_pair}")
                 
                 # Mostra pensamentos da IA
                 for thought in ai_thoughts:
                     self.logger.info(f"🧠 {thought}")
-                    self._send_notification(f"🧠 {thought}")
+                    if cycle_count <= 3:  # Só envia primeiras análises para não spam
+                        self._send_notification(f"🧠 {thought}")
                 
                 # Lógica de trading avançada
-                self.execute_advanced_trading()
+                self.execute_advanced_trading(cycle_count)
                 
                 # ✅ AGUARDA 5 MINUTOS
                 self.logger.info(f"⏰ Próxima análise em 5 minutos...")
                 
                 # Contagem regressiva inteligente
-                for i in range(self.interval, 0, -60):
+                for i in range(self.interval, 0, -30):
+                    if not self.is_running:
+                        break
                     remaining_min = i // 60
-                    if remaining_min <= 5:  # Mostra apenas últimos 5 minutos
+                    if i % 60 == 0 and remaining_min > 0:
                         self.logger.info(f"⏳ Próxima análise em {remaining_min} min")
-                    time.sleep(60)
+                    time.sleep(30)
                 
             except Exception as e:
                 self.logger.error(f"❌ Erro no ciclo: {e}")
                 self._send_notification(f"⚠️ Erro no sistema: {e}")
                 time.sleep(60)
     
-    def execute_advanced_trading(self):
+    def execute_advanced_trading(self, cycle_count):
         """Executa lógica de trading avançada com IA"""
         # Análise de mercado profunda
         market_sentiment = self.analyze_market_sentiment()
@@ -90,18 +95,19 @@ class TradingBot:
         
         # ✅ DECISÃO DE TRADE INTELIGENTE
         if random.random() < adjusted_probability:
-            self.execute_intelligent_trade()
+            self.execute_intelligent_trade(cycle_count)
         else:
-            waiting_msg = (
-                f"⏸️ Análise #{self.trade_count} - {self.current_pair}\n"
-                f"📊 Sem oportunidades ideais\n"
-                f"🎯 Probabilidade ajustada: {adjusted_probability*100:.1f}%\n"
-                f"⏰ Próxima análise em 5min"
-            )
+            if cycle_count <= 5:  # Só notifica primeiras análises
+                waiting_msg = (
+                    f"⏸️ Análise #{cycle_count} - {self.current_pair}\n"
+                    f"📊 Sem oportunidades ideais\n"
+                    f"🎯 Probabilidade: {adjusted_probability*100:.1f}%\n"
+                    f"⏰ Próxima em 5min"
+                )
+                self._send_notification(waiting_msg)
             self.logger.info(f"⏸️ Sem trade - Probabilidade: {adjusted_probability*100:.1f}%")
-            self._send_notification(waiting_msg)
     
-    def execute_intelligent_trade(self):
+    def execute_intelligent_trade(self, cycle_count):
         """Executa trade inteligente com IA"""
         # Estratégia baseada em análise
         strategy = self.select_trading_strategy()
@@ -125,7 +131,7 @@ class TradingBot:
             self.consecutive_wins += 1
             self.consecutive_losses = 0
             message = (
-                f"🟢 TRADE #{self.trade_count} - {direction}\n"
+                f"🟢 TRADE #{cycle_count} - {direction}\n"
                 f"💎 Par: {self.current_pair}\n"
                 f"🎯 Estratégia: {strategy}\n"
                 f"💰 Lucro: +${profit_loss:.2f} ✅\n"
@@ -136,10 +142,10 @@ class TradingBot:
             self.consecutive_losses += 1
             self.consecutive_wins = 0
             message = (
-                f"🔴 TRADE #{self.trade_count} - {direction}\n"
+                f"🔴 TRADE #{cycle_count} - {direction}\n"
                 f"💎 Par: {self.current_pair}\n"
                 f"🎯 Estratégia: {strategy}\n"
-                f"💸 Prejuízo: -${abs(profit_loss):.2f} ❌\n"
+                f"💸 Prejuízo: ${profit_loss:.2f} ❌\n"
                 f"📉 Consecutivos: {self.consecutive_losses} derrotas\n"
                 f"🎯 Aprendendo com o erro..."
             )
@@ -150,7 +156,7 @@ class TradingBot:
     def analyze_market_sentiment(self):
         """Analisa sentimento do mercado"""
         sentiments = ["OTIMISTA", "NEUTRO", "CUIDADO", "ALTA VOLATILIDADE"]
-        weights = [0.4, 0.3, 0.2, 0.1]  # Mais otimista por padrão
+        weights = [0.4, 0.3, 0.2, 0.1]
         return random.choices(sentiments, weights=weights)[0]
     
     def calculate_risk_level(self):
@@ -166,19 +172,18 @@ class TradingBot:
         """Ajusta probabilidade baseado em aprendizado"""
         base_prob = TRADE_PROBABILITY
         
-        # Ajustes baseados em performance
         if self.consecutive_wins >= 2:
-            base_prob += 0.1  # Aumenta probabilidade após vitórias
+            base_prob += 0.1
         elif self.consecutive_losses >= 2:
-            base_prob -= 0.1  # Reduz probabilidade após derrotas
+            base_prob -= 0.1
         
-        return max(0.1, min(0.8, base_prob))  # Limites de 10% a 80%
+        return max(0.1, min(0.8, base_prob))
     
     def select_trading_strategy(self):
         """Seleciona estratégia de trading"""
         strategies = [
             "Scalping 5min", "Momentum", "Reversão à Média", 
-            "Breakout", "IA Pattern", "Conservative", "Aggressive"
+            "Breakout", "IA Pattern", "Conservative"
         ]
         return random.choice(strategies)
     
@@ -187,17 +192,17 @@ class TradingBot:
         base_size = MAX_TRADE_AMOUNT
         
         if self.consecutive_losses >= 2:
-            return base_size * 0.5  # Reduz tamanho após perdas
+            return base_size * 0.5
         elif self.consecutive_wins >= 2:
-            return base_size * 1.2  # Aumenta após vitórias
+            return base_size * 1.2
         
         return base_size
     
     def get_market_data(self, pair):
         """Simula dados de mercado"""
         return {
-            'last_price': str(random.randint(100, 50000)),
-            'price_24h_pcnt': str(random.uniform(-0.1, 0.1)),
+            'last_price': str(random.randint(25000, 50000)),
+            'price_24h_pcnt': str(random.uniform(-0.05, 0.05)),
             'volume_24h': str(random.randint(1000000, 50000000))
         }
     
