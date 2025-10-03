@@ -1,946 +1,483 @@
-#!/usr/bin/env python3
-import asyncio
 import logging
-import sys
-import os
+import threading
+import time
 from flask import Flask, render_template_string, jsonify, request
-import json
-from datetime import datetime
+from trader.core import TradingBot
+from telegram_bot.bot import TelegramBot
+from config import HOST, PORT, FLASK_SECRET_KEY
 
 # Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('ultrabot.log')
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-logger = logging.getLogger(__name__)
+app = Flask(__name__)
+app.secret_key = FLASK_SECRET_KEY
 
-# Sistema de estado compartilhado
-class SharedState:
-    def __init__(self):
-        self.state_file = 'bot_state.json'
-    
-    def get_state(self):
-        """Obtém o estado atual do bot"""
-        try:
-            if os.path.exists(self.state_file):
-                with open(self.state_file, 'r') as f:
-                    state = json.load(f)
-                    # Verificar se o estado não está muito antigo (mais de 10 minutos)
-                    last_update = state.get('last_update')
-                    if last_update:
-                        last_dt = datetime.fromisoformat(last_update)
-                        if (datetime.now() - last_dt).total_seconds() > 600:  # 10 minutos
-                            return {'running': False, 'is_stale': True}
-                    return {**state, 'is_stale': False}
-        except Exception as e:
-            logger.warning(f"⚠️ Não foi possível carregar estado compartilhado: {e}")
-        
-        # Estado padrão
-        return {
-            'running': False,
-            'started_at': None,
-            'trades_today': 0,
-            'profit_today': 0.0,
-            'last_update': datetime.now().isoformat(),
-            'is_stale': False
-        }
-    
-    def set_state(self, running, trades=0, profit=0.0):
-        """Define o estado do bot"""
-        state = {
-            'running': running,
-            'started_at': datetime.now().isoformat() if running else None,
-            'trades_today': trades,
-            'profit_today': profit,
-            'last_update': datetime.now().isoformat(),
-            'is_stale': False
-        }
-        
-        try:
-            with open(self.state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            logger.info(f"💾 Estado compartilhado atualizado: running={running}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Erro ao salvar estado compartilhado: {e}")
-            return False
+# Variáveis globais
+trading_bot = None
+bot_thread = None
+system_logs = []
+real_trading_mode = False
 
-# Instância global do estado compartilhado
-shared_state = SharedState()
-
-class UltraBotApp:
-    def __init__(self):
-        self.app = Flask(__name__)
-        self.bot = None
-        self.analyser = None
-        self.telegram_available = False
-        self.setup_routes()
-        
-    def setup_routes(self):
-        @self.app.route('/')
-        def index():
-            # Verificar estado compartilhado primeiro
-            global_state = shared_state.get_state()
-            bot_running_global = global_state.get('running', False)
-            
-            bot_running = getattr(self.bot, 'running', False) if self.bot else False
-            bot_mode = getattr(self.bot, 'mode', 'CONSERVATIVE') if self.bot else 'CONSERVATIVE'
-            real_balance = getattr(self.analyser, 'last_balance', 18.34) if self.analyser else 18.34
-            
-            # Estado real considera ambos (web e compartilhado)
-            actual_running = bot_running or bot_running_global
-            
-            # Obter estatísticas do bot se estiver rodando
-            if self.bot:
-                bot_status = self.bot.get_status()
-                profit_today = bot_status['profit_today']
-                win_rate = bot_status['win_rate']
-                trades_today = bot_status['trades_today']
-                wins = bot_status['wins_today']
-                losses = bot_status['losses_today']
-                available_balance = bot_status['available_balance']
-                allocated_balance = bot_status['allocated_balance']
-                total_balance = bot_status['balance']
-                next_trade_in = bot_status['next_trade_in']
-                notifications_count = bot_status['notifications_count']
-                
-                # Obter histórico recente
-                recent_trades = self.bot.get_trading_history(5)
-                recent_notifications = self.bot.get_notifications()[:5]
-            else:
-                profit_today = 0.00
-                win_rate = 0.0
-                trades_today = 0
-                wins = 0
-                losses = 0
-                available_balance = 850.00
-                allocated_balance = 150.00
-                total_balance = 1000.00
-                next_trade_in = "N/A"
-                notifications_count = 0
-                recent_trades = []
-                recent_notifications = []
-            
-            # Informação de sincronização
-            sync_info = ""
-            if global_state.get('is_stale'):
-                sync_info = " | ⚠️ Estado desatualizado"
-            elif bot_running_global and not bot_running:
-                sync_info = " | 🔀 Controlado via Telegram"
-            elif not bot_running_global and bot_running:
-                sync_info = " | 🌐 Controlado via Web"
-            
-            return render_template_string('''
+# HTML Template para a interface
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ULTRABOT PRO</title>
+    <title>ULTRABOT PRO - Sistema Avançado</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 100%);
-            color: #fff;
-            margin: 0;
-            padding: 20px;
+        body { 
+            font-family: 'Arial', sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: white; 
+            min-height: 100vh;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(25, 25, 35, 0.95);
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
             border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            color: #00ff88;
-            margin: 0;
-            font-size: 28px;
-        }
-        .subtitle {
-            color: #888;
-            font-size: 14px;
-            margin: 5px 0;
+            backdrop-filter: blur(10px);
         }
         .dashboard {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 20px;
             margin-bottom: 20px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            padding: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
         }
-        .status {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
-            text-align: center;
+        .status { 
+            border-left: 5px solid {{ '#00ff00' if status.running else '#ff0000' }};
         }
-        .status-stopped {
-            background: rgba(255, 0, 0, 0.1);
-            border: 1px solid #ff4444;
+        .mode-card {
+            border-left: 5px solid {{ '#ff9900' if status.real_trading else '#0099ff' }};
         }
-        .balance {
-            background: rgba(0, 100, 255, 0.1);
-            border: 1px solid #0066ff;
-        }
-        .profit {
-            text-align: center;
-            grid-column: 1 / -1;
-        }
-        .profit-value {
-            font-size: 32px;
+        .btn { 
+            padding: 12px 25px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
             font-weight: bold;
-            color: #00ff88;
+            transition: all 0.3s;
         }
-        .profit-negative {
-            color: #ff4444;
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
-        .win-rate {
-            color: #888;
-            font-size: 14px;
+        .start { 
+            background: #00ff00; 
+            color: black; 
         }
-        .trades {
-            display: flex;
-            justify-content: space-around;
-            margin: 20px 0;
+        .stop { 
+            background: #ff0000; 
+            color: white; 
         }
-        .trade-count {
-            text-align: center;
+        .real-mode {
+            background: #ff9900;
+            color: black;
         }
-        .controls {
+        .simulated-mode {
+            background: #0099ff;
+            color: white;
+        }
+        .log { 
+            background: rgba(0,0,0,0.7); 
+            padding: 15px; 
+            border-radius: 10px; 
+            margin-top: 20px; 
+            max-height: 400px; 
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-info { background: rgba(0,255,0,0.1); }
+        .log-warning { background: rgba(255,255,0,0.1); }
+        .log-error { background: rgba(255,0,0,0.1); }
+        .stats-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 10px;
-            margin: 20px 0;
+            margin: 15px 0;
         }
-        .button {
-            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
-            border: none;
-            border-radius: 8px;
-            color: #000;
-            padding: 12px 20px;
-            font-weight: bold;
-            cursor: pointer;
+        .stat-item {
             text-align: center;
-        }
-        .button-danger {
-            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
-            color: white;
-        }
-        .button:disabled {
-            background: #666;
-            cursor: not-allowed;
-        }
-        .button-secondary {
-            background: linear-gradient(135deg, #666 0%, #444 100%);
-            color: white;
-        }
-        .history-section {
-            margin-top: 20px;
-        }
-        .history-item {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
             padding: 10px;
-            margin: 5px 0;
-            border-left: 3px solid #00ff88;
-        }
-        .history-item.loss {
-            border-left-color: #ff4444;
-        }
-        .notification-item {
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255,255,255,0.05);
             border-radius: 8px;
-            padding: 10px;
-            margin: 5px 0;
-            border-left: 3px solid #ffc107;
-            font-size: 12px;
         }
-        .notification-item.success {
-            border-left-color: #00ff88;
-        }
-        .notification-item.error {
-            border-left-color: #ff4444;
-        }
-        .notification-item.info {
-            border-left-color: #17a2b8;
-        }
-        .section-title {
-            color: #00ff88;
-            margin: 15px 0 10px 0;
-            font-size: 16px;
-        }
-        .alert {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 12px;
-        }
-        .discrepancy-warning {
-            background: rgba(255, 87, 87, 0.1);
-            border: 1px solid #ff5757;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 12px;
-            color: #ff5757;
-        }
-        .success-alert {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 12px;
-            color: #00ff88;
-        }
-        .sync-info {
-            background: rgba(147, 51, 234, 0.1);
-            border: 1px solid #9333ea;
-            border-radius: 8px;
-            padding: 8px;
-            margin: 5px 0;
-            font-size: 11px;
-            color: #c084fc;
-            text-align: center;
-        }
-        .tab-container {
-            margin: 20px 0;
-        }
-        .tabs {
-            display: flex;
-            margin-bottom: 10px;
-        }
-        .tab {
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.05);
-            border: none;
-            color: #fff;
-            cursor: pointer;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
-        }
-        .tab.active {
-            background: rgba(0, 255, 136, 0.2);
-            color: #00ff88;
-        }
-        .tab-content {
+        .confirmation-modal {
             display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
         }
-        .tab-content.active {
-            display: block;
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a1a2e;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #ff9900;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>ULTRABOT PRO</h1>
-            <div class="subtitle">Robó de Trading Inteligente - Modo Ganancioso Ativado</div>
+            <h1>🤖 ULTRABOT PRO - SISTEMA AVANÇADO</h1>
+            <p>Bot de Trading com IA - Intervalo: 5min - Modo Autônomo</p>
         </div>
-        
-        {% if debug.mode == 'REAL' %}
-        <div class="alert">
-            ⚠️ <strong>MODO REAL ATIVO</strong><br>
-            Operando com dinheiro real!
-        </div>
-        {% endif %}
-        
-        {% if debug.show_discrepancy %}
-        <div class="discrepancy-warning">
-            ⚠️ <strong>DIFERENÇA DE SALDO</strong><br>
-            Bybit: ${{ debug.real_balance }} vs Bot: ${{ "%.2f"|format(balance.total) }}
-        </div>
-        {% endif %}
-        
-        {% if debug.sync_info %}
-        <div class="sync-info">
-            {{ debug.sync_info }}
-        </div>
-        {% endif %}
-        
-        {% if debug.bot_running %}
-        <div class="success-alert">
-            ✅ <strong>BOT RODANDO</strong><br>
-            Próxima análise em: {{ debug.next_trade_in }} | Notificações: {{ debug.notifications_count }}
-        </div>
-        {% endif %}
         
         <div class="dashboard">
-            <div class="card status {{ 'status-running' if debug.bot_running else 'status-stopped' }}">
-                <strong>Status</strong><br>
-                {{ '🟢 RODANDO' if debug.bot_running else '🔴 PARADO' }}<br>
-                {{ debug.bot_mode }}<br>
-                <small>Próximo: {{ debug.next_trade_in }}</small>
+            <div class="card status">
+                <h3>Status do Sistema</h3>
+                <p><strong>Status:</strong> {{ '🟢 RODANDO' if status.running else '🔴 PARADO' }}</p>
+                <p><strong>Modo:</strong> {{ '💰 REAL' if status.real_trading else '🎮 SIMULADO' }}</p>
+                <p><strong>Análises:</strong> {{ status.trade_count }}</p>
+                <p><strong>Lucro Total:</strong> ${{ status.total_profit }}</p>
+                <p><strong>IA:</strong> 🧠 Ativa e Aprendendo</p>
             </div>
             
-            <div class="card balance">
-                <strong>Saldo ${{ "%.2f"|format(balance.total) }}</strong><br>
-                Disponível: ${{ "%.2f"|format(balance.available) }}<br>
-                Alocado: ${{ "%.2f"|format(balance.allocated) }}
-            </div>
-            
-            <div class="card profit">
-                <div class="profit-value {{ 'profit-negative' if profit.today < 0 }}">
-                    ${{ "%.2f"|format(profit.today) }}
+            <div class="card mode-card">
+                <h3>Modo de Operação</h3>
+                <p><strong>Modo Atual:</strong> {{ '💰 TRADING REAL' if status.real_trading else '🎮 SIMULAÇÃO' }}</p>
+                <p><strong>Saldo:</strong> ${{ '18.34' if status.real_trading else '1000.00' }}</p>
+                <p><strong>Risco:</strong> {{ 'ALTO ⚠️' if status.real_trading else 'ZERO ✅' }}</p>
+                
+                <div style="margin-top: 15px;">
+                    {% if not status.real_trading %}
+                    <button class="btn real-mode" onclick="showRealTradingConfirmation()">
+                        🚀 Ativar Trading Real
+                    </button>
+                    {% else %}
+                    <button class="btn simulated-mode" onclick="switchToSimulated()">
+                        🎮 Voltar para Simulado
+                    </button>
+                    {% endif %}
                 </div>
-                <div class="win-rate">Lucro Hoje</div>
-                <div class="win-rate">Win Rate: {{ "%.1f"|format(profit.win_rate) }}%</div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div>📊 Vitórias Consec.</div>
+                <div><strong>{{ status.consecutive_wins }}</strong></div>
+            </div>
+            <div class="stat-item">
+                <div>📉 Derrotas Consec.</div>
+                <div><strong>{{ status.consecutive_losses }}</strong></div>
+            </div>
+            <div class="stat-item">
+                <div>⏰ Próxima Análise</div>
+                <div><strong>5 min</strong></div>
+            </div>
+            <div class="stat-item">
+                <div>🧠 IA</div>
+                <div><strong>Ativa</strong></div>
             </div>
         </div>
         
-        <div class="trades">
-            <div class="trade-count">
-                <strong>{{ trades.total }}</strong><br>
-                Trades Hoje
-            </div>
-            <div class="trade-count">
-                <strong>{{ trades.win_loss }}</strong><br>
-                Vitórias / Derrotas
-            </div>
-            <div class="trade-count">
-                <strong>{{ "%.1f"|format(profit.win_rate) }}%</strong><br>
-                Win Rate
-            </div>
+        <div style="text-align: center; margin: 20px 0;">
+            {% if not status.running %}
+            <button class="btn start" onclick="startBot()">
+                ▶️ Iniciar Bot
+            </button>
+            {% else %}
+            <button class="btn stop" onclick="stopBot()">
+                ⏹️ Parar Bot
+            </button>
+            {% endif %}
         </div>
-
-        <div class="controls">
-            <button class="button" onclick="startBot()" {{ 'disabled' if debug.bot_running }}>▶️ INICIAR BOT</button>
-            <button class="button button-danger" onclick="stopBot()" {{ 'disabled' if not debug.bot_running }}>⏹️ PARAR BOT</button>
-            <button class="button button-secondary" onclick="refreshData()">🔄 ATUALIZAR</button>
-            <button class="button button-secondary" onclick="resetStats()">📊 RESETAR ESTATÍSTICAS</button>
-        </div>
-
-        <div class="tab-container">
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('notifications')">🔔 Notificações ({{ debug.notifications_count }})</button>
-                <button class="tab" onclick="switchTab('history')">📈 Histórico</button>
-                <button class="tab" onclick="switchTab('stats')">📊 Estatísticas</button>
-            </div>
-            
-            <div id="notifications-tab" class="tab-content active">
-                <div class="section-title">ÚLTIMAS NOTIFICAÇÕES</div>
-                {% for notif in notifications %}
-                <div class="notification-item {{ notif.level }}">
-                    <strong>{{ notif.timestamp[11:16] }}</strong> - {{ notif.message }}
-                </div>
-                {% else %}
-                <div class="notification-item info">
-                    Nenhuma notificação recente
-                </div>
+        
+        <div class="card">
+            <h3>📝 Logs em Tempo Real</h3>
+            <div class="log" id="logContainer">
+                {% for log in logs %}
+                <div class="log-entry log-{{ log.type }}">[{{ log.time }}] {{ log.message }}</div>
                 {% endfor %}
-            </div>
-            
-            <div id="history-tab" class="tab-content">
-                <div class="section-title">ÚLTIMOS TRADES</div>
-                {% for trade in history %}
-                <div class="history-item {{ 'loss' if trade.type == 'LOSS' else '' }}">
-                    <strong>{{ trade.timestamp[11:16] }}</strong> - 
-                    {{ '✅ WIN' if trade.type == 'WIN' else '❌ LOSS' }} - 
-                    ${{ "%.2f"|format(trade.profit_loss) }} - 
-                    Valor: ${{ "%.2f"|format(trade.amount) }}
-                </div>
-                {% else %}
-                <div class="history-item">
-                    Nenhum trade registrado ainda
-                </div>
-                {% endfor %}
-            </div>
-            
-            <div id="stats-tab" class="tab-content">
-                <div class="section-title">ESTATÍSTICAS DO DIA</div>
-                <div class="card">
-                    <strong>Data:</strong> {{ debug.timestamp }}<br>
-                    <strong>Trades Realizados:</strong> {{ trades.total }}<br>
-                    <strong>Vitórias:</strong> {{ trades.wins }}<br>
-                    <strong>Derrotas:</strong> {{ trades.losses }}<br>
-                    <strong>Win Rate:</strong> {{ "%.1f"|format(profit.win_rate) }}%<br>
-                    <strong>Lucro Total:</strong> ${{ "%.2f"|format(profit.today) }}<br>
-                    <strong>Saldo Atual:</strong> ${{ "%.2f"|format(balance.total) }}
-                </div>
             </div>
         </div>
     </div>
-
+    
+    <!-- Modal de Confirmação Trading Real -->
+    <div id="realTradingModal" class="confirmation-modal">
+        <div class="modal-content">
+            <h2>⚠️ ALERTA DE RISCO ⚠️</h2>
+            <p><strong>Você está prestes a ativar o MODO REAL</strong></p>
+            <p>🔸 Serão utilizados fundos REAIS da sua conta</p>
+            <p>🔸 Risco de PERDA FINANCEIRA real</p>
+            <p>🔸 Saldo atual: <strong>$18.34</strong></p>
+            <p>🔸 Máximo por trade: <strong>$50.00</strong></p>
+            
+            <div style="margin: 20px 0;">
+                <label>
+                    <input type="checkbox" id="riskCheckbox">
+                    Eu entendo os riscos e desejo continuar
+                </label>
+            </div>
+            
+            <div>
+                <button class="btn stop" onclick="hideRealTradingConfirmation()">Cancelar</button>
+                <button class="btn real-mode" id="confirmRealBtn" disabled onclick="activateRealTrading()">
+                    🚀 ATIVAR TRADING REAL
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         function startBot() {
-            fetch('/api/start', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showAlert('✅ ' + data.message, 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showAlert('❌ ' + (data.error || 'Erro ao iniciar bot'), 'error');
-                    }
-                })
-                .catch(error => {
-                    showAlert('❌ Erro de conexão: ' + error, 'error');
-                });
+            fetch('/start', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ real_trading: {{ 'true' if status.real_trading else 'false' }} })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('🤖 Bot iniciado com sucesso!');
+                    location.reload();
+                } else {
+                    alert('❌ Erro: ' + data.message);
+                }
+            });
         }
-
+        
         function stopBot() {
-            fetch('/api/stop', { method: 'POST' })
+            fetch('/stop', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('🛑 Bot parado!');
+                    location.reload();
+                }
+            });
+        }
+        
+        function showRealTradingConfirmation() {
+            document.getElementById('realTradingModal').style.display = 'block';
+        }
+        
+        function hideRealTradingConfirmation() {
+            document.getElementById('realTradingModal').style.display = 'none';
+        }
+        
+        function switchToSimulated() {
+            if (confirm('Deseja voltar para o modo SIMULADO?')) {
+                fetch('/switch_mode', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ real_trading: false })
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showAlert('✅ ' + data.message, 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showAlert('❌ ' + (data.error || 'Erro ao parar bot'), 'error');
-                    }
-                })
-                .catch(error => {
-                    showAlert('❌ Erro de conexão: ' + error, 'error');
-                });
-        }
-
-        function refreshData() {
-            location.reload();
-        }
-
-        function resetStats() {
-            if (confirm('Tem certeza que deseja resetar as estatísticas do dia?')) {
-                fetch('/api/reset_stats', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showAlert('✅ ' + data.message, 'success');
-                            setTimeout(() => location.reload(), 1500);
-                        } else {
-                            showAlert('❌ ' + (data.error || 'Erro ao resetar estatísticas'), 'error');
-                        }
-                    })
-                    .catch(error => {
-                        showAlert('❌ Erro de conexão: ' + error, 'error');
-                    });
-            }
-        }
-
-        function switchTab(tabName) {
-            // Esconde todas as tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Mostra a tab selecionada
-            document.getElementById(tabName + '-tab').classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        function showAlert(message, type) {
-            const alert = document.createElement('div');
-            alert.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 15px 20px;
-                border-radius: 8px;
-                color: white;
-                z-index: 1000;
-                font-weight: bold;
-                background: ${type === 'success' ? '#00ff88' : '#ff4444'};
-                color: ${type === 'success' ? '#000' : '#fff'};
-            `;
-            alert.textContent = message;
-            document.body.appendChild(alert);
-            
-            setTimeout(() => {
-                alert.remove();
-            }, 3000);
-        }
-
-        // Auto-refresh a cada 30 segundos se o bot estiver rodando
-        {% if debug.bot_running %}
-        setInterval(() => {
-            fetch('/api/status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.bot_status && data.bot_status.trades_today > {{ trades.total }}) {
+                        alert('🎮 Modo simulado ativado!');
                         location.reload();
                     }
                 });
-        }, 30000);
-        {% endif %}
+            }
+        }
+        
+        function activateRealTrading() {
+            fetch('/switch_mode', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ real_trading: true })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('🚀 TRADING REAL ATIVADO! Use com cuidado!');
+                    location.reload();
+                }
+            });
+        }
+        
+        // Atualiza logs a cada 3 segundos
+        setInterval(() => {
+            fetch('/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const logContainer = document.getElementById('logContainer');
+                    logContainer.innerHTML = data.logs;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                });
+        }, 3000);
+        
+        // Controle do checkbox de risco
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkbox = document.getElementById('riskCheckbox');
+            const confirmBtn = document.getElementById('confirmRealBtn');
+            
+            if (checkbox && confirmBtn) {
+                checkbox.addEventListener('change', function() {
+                    confirmBtn.disabled = !this.checked;
+                });
+            }
+        });
     </script>
 </body>
 </html>
-            ''', 
-            balance={
-                'total': total_balance, 
-                'available': available_balance, 
-                'allocated': allocated_balance
-            },
-            profit={'today': profit_today, 'win_rate': win_rate},
-            trades={
-                'total': trades_today, 
-                'win_loss': f'{wins} / {losses}',
-                'wins': wins,
-                'losses': losses
-            },
-            history=recent_trades,
-            notifications=recent_notifications,
-            debug={
-                'mode': 'SIMULADO',
-                'bot_running': actual_running,
-                'bot_mode': bot_mode,
-                'telegram_status': 'ATIVO' if self.telegram_available else 'NÃO DISPONÍVEL',
-                'real_balance': "%.2f" % real_balance,
-                'total_trades': trades_today,
-                'show_discrepancy': abs(real_balance - total_balance) > 1.0,
-                'next_trade_in': next_trade_in,
-                'notifications_count': notifications_count,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                'sync_info': sync_info
-            })
-        
-        @self.app.route('/api/balance')
-        def api_balance():
-            """Endpoint para verificar saldo real"""
-            try:
-                if self.analyser is None:
-                    from trader.bybit_analyser import BybitAnalyser
-                    self.analyser = BybitAnalyser()
-                
-                async def get_balance_async():
-                    return await self.analyser.get_balance()
-                
-                bybit_balance = asyncio.run(get_balance_async())
-                bot_balance = 1000.00
-                
-                return jsonify({
-                    'bybit_balance': bybit_balance,
-                    'bot_balance': bot_balance,
-                    'discrepancy': abs(bybit_balance - bot_balance),
-                    'sync_ok': abs(bybit_balance - bot_balance) < 1.0
-                })
-            except Exception as e:
-                logger.error(f"Erro ao verificar saldo: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/status')
-        def api_status():
-            """Endpoint para status do sistema"""
-            bot_status = self.bot.get_status() if self.bot else {}
-            global_state = shared_state.get_state()
-            
-            # Estado real considera ambos
-            actual_running = bot_status.get('running', False) or global_state.get('running', False)
-            
-            return jsonify({
-                'bot_running': actual_running,
-                'telegram_available': self.telegram_available,
-                'mode': 'SIMULATION',
-                'bot_status': bot_status,
-                'global_state': global_state,
-                'status': 'OPERATIONAL'
-            })
-        
-        @self.app.route('/api/history')
-        def api_history():
-            """Endpoint para histórico de trades"""
-            try:
-                if self.bot is None:
-                    return jsonify({'history': [], 'total': 0})
-                
-                history = self.bot.get_trading_history(50)
-                return jsonify({
-                    'history': history,
-                    'total': len(history)
-                })
-            except Exception as e:
-                logger.error(f"Erro ao obter histórico: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/notifications')
-        def api_notifications():
-            """Endpoint para notificações"""
-            try:
-                if self.bot is None:
-                    return jsonify({'notifications': [], 'unread': 0})
-                
-                notifications = self.bot.get_notifications()
-                unread_count = len([n for n in notifications if not n['read']])
-                
-                return jsonify({
-                    'notifications': notifications[:20],
-                    'unread': unread_count,
-                    'total': len(notifications)
-                })
-            except Exception as e:
-                logger.error(f"Erro ao obter notificações: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/start', methods=['POST'])
-        def api_start():
-            """Inicia o bot de trading"""
-            try:
-                if self.bot is None:
-                    from trader.core import UltraBot
-                    self.bot = UltraBot()
-                
-                # Verificar estado atual
-                current_state = shared_state.get_state()
-                if current_state.get('running'):
-                    return jsonify({'success': False, 'error': 'Bot já está rodando (via Telegram)'})
-                
-                if self.bot.running:
-                    return jsonify({'success': False, 'error': 'Bot já está rodando'})
-                
-                # Inicializar analisador se necessário
-                if self.analyser is None:
-                    from trader.bybit_analyser import BybitAnalyser
-                    self.analyser = BybitAnalyser()
-                
-                # Inicializar Telegram se necessário
-                if not self.telegram_available:
-                    try:
-                        asyncio.run(self.initialize_telegram())
-                    except Exception as e:
-                        logger.warning(f"Telegram não disponível: {e}")
-                
-                # Iniciar bot
-                try:
-                    success = asyncio.run(self.bot.start())
-                except Exception as e:
-                    logger.error(f"Erro ao iniciar bot: {e}")
-                    return jsonify({'success': False, 'error': f'Falha ao iniciar: {str(e)}'}), 500
-                
-                if success:
-                    logger.info("🚀 Bot iniciado via API")
-                    
-                    # Atualizar estado compartilhado
-                    shared_state.set_state(True, self.bot.trades_today, self.bot.profit_today)
-                    
-                    # Notificação Telegram (opcional)
-                    if self.telegram_available:
-                        try:
-                            from telegram_bot.bot import TelegramBot
-                            telegram_bot = TelegramBot()
-                            
-                            async def send_msg():
-                                await telegram_bot.send_message(
-                                    "-4977542145", 
-                                    "🌐 *ULTRABOT INICIADO VIA WEB*\n"
-                                    "Modo: SIMULATION\n"
-                                    "Saldo: $1000.00\n"
-                                    "Intervalo: 10 minutos\n"
-                                    "✅ Estado sincronizado com Telegram"
-                                )
-                            
-                            asyncio.run(send_msg())
-                        except Exception as e:
-                            logger.warning(f"⚠️ Não foi possível enviar mensagem Telegram: {e}")
-                    
-                    return jsonify({'success': True, 'message': 'Bot iniciado com sucesso! (Estado sincronizado com Telegram)'})
-                else:
-                    return jsonify({'success': False, 'error': 'Falha ao iniciar bot'})
-                
-            except Exception as e:
-                logger.error(f"Erro ao iniciar bot: {e}")
-                return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
-        
-        @self.app.route('/api/stop', methods=['POST'])
-        def api_stop():
-            """Para o bot de trading"""
-            try:
-                if self.bot is None:
-                    return jsonify({'success': False, 'error': 'Bot não está inicializado'})
-                
-                # Verificar estado atual
-                current_state = shared_state.get_state()
-                if not current_state.get('running') and not self.bot.running:
-                    return jsonify({'success': False, 'error': 'Bot não está rodando'})
-                
-                # Parar o bot de forma segura
-                self.bot.running = False
-                
-                # Obter estatísticas antes de parar
-                bot_status = self.bot.get_status()
-                
-                # Criar mensagem de parada
-                stop_msg = f"⏹️ ULTRABOT PARADO | Trades: {bot_status['trades_today']} | Lucro: ${bot_status['profit_today']:.2f}"
-                logger.info(stop_msg)
-                
-                # Adicionar notificação
-                self.bot.add_notification(stop_msg, "info")
-                
-                # Atualizar estado compartilhado
-                shared_state.set_state(False, bot_status['trades_today'], bot_status['profit_today'])
-                
-                # Salvar histórico se existir o método
-                if hasattr(self.bot, 'save_history') and callable(getattr(self.bot, 'save_history')):
-                    self.bot.save_history()
-                
-                logger.info("⏹️ Bot parado via API")
-                
-                # Enviar notificação Telegram (opcional)
-                if self.telegram_available:
-                    try:
-                        from telegram_bot.bot import TelegramBot
-                        telegram_bot = TelegramBot()
-                        
-                        message = (
-                            f"🌐 *ULTRABOT PARADO VIA WEB*\n"
-                            f"Trades hoje: {bot_status['trades_today']}\n"
-                            f"W/L: {bot_status['wins_today']}/{bot_status['losses_today']}\n"
-                            f"Lucro: ${bot_status['profit_today']:.2f}\n"
-                            f"Win Rate: {bot_status['win_rate']}%\n"
-                            f"✅ Estado sincronizado com Telegram"
-                        )
-                        
-                        # Executar de forma assíncrona
-                        async def send_msg():
-                            await telegram_bot.send_message("-4977542145", message)
-                        
-                        asyncio.run(send_msg())
-                        
-                    except Exception as e:
-                        logger.warning(f"⚠️ Não foi possível enviar mensagem Telegram: {e}")
-                
-                return jsonify({
-                    'success': True, 
-                    'message': 'Bot parado com sucesso! (Estado sincronizado com Telegram)',
-                    'stats': {
-                        'trades': bot_status['trades_today'],
-                        'profit': bot_status['profit_today'],
-                        'win_rate': bot_status['win_rate']
-                    }
-                })
-                
-            except Exception as e:
-                logger.error(f"Erro ao parar bot: {e}")
-                return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
-        
-        @self.app.route('/api/reset_stats', methods=['POST'])
-        def api_reset_stats():
-            """Reseta estatísticas do dia"""
-            try:
-                if self.bot is None:
-                    return jsonify({'success': False, 'error': 'Bot não inicializado'})
-                
-                self.bot.reset_daily_stats()
-                logger.info("📊 Estatísticas resetadas via API")
-                
-                return jsonify({'success': True, 'message': 'Estatísticas resetadas com sucesso!'})
-                
-            except Exception as e:
-                logger.error(f"Erro ao resetar estatísticas: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/health')
-        def health():
-            """Health check endpoint"""
-            bot_status = self.bot.get_status() if self.bot else {}
-            global_state = shared_state.get_state()
-            
-            actual_running = bot_status.get('running', False) or global_state.get('running', False)
-            
-            return jsonify({
-                'status': 'healthy', 
-                'service': 'ultrabot_pro',
-                'bot_running': actual_running,
-                'trades_today': bot_status.get('trades_today', 0),
-                'global_state': global_state
-            })
+"""
 
-    async def initialize(self):
-        """Inicializa a aplicação"""
-        try:
-            from trader.bybit_analyser import BybitAnalyser
-            self.analyser = BybitAnalyser()
-            
-            real_balance = await self.analyser.get_balance()
-            logger.info(f"💰 Saldo real na Bybit: ${real_balance:.2f}")
-            
-            from trader.core import UltraBot
-            self.bot = UltraBot()
-            logger.info("🤖 ULTRABOT inicializado - Modo Ganancioso Ativado!")
-            
-            await self.initialize_telegram()
-            
-            await self.run_verification()
-            
-        except Exception as e:
-            logger.error(f"❌ Erro na inicialização: {e}")
-            raise
+@app.route('/')
+def index():
+    """Página principal"""
+    global trading_bot, real_trading_mode
+    
+    status = {
+        'running': trading_bot.is_running if trading_bot else False,
+        'trade_count': trading_bot.trade_count if trading_bot else 0,
+        'total_profit': f"{trading_bot.total_profit:.2f}" if trading_bot else "0.00",
+        'real_trading': real_trading_mode,
+        'consecutive_wins': trading_bot.consecutive_wins if trading_bot else 0,
+        'consecutive_losses': trading_bot.consecutive_losses if trading_bot else 0,
+    }
+    
+    return render_template_string(HTML_TEMPLATE, status=status, logs=system_logs[-20:])
 
-    async def initialize_telegram(self):
-        """Inicializa o bot do Telegram"""
-        try:
-            from telegram_bot.bot import TelegramBot
-            telegram_bot = TelegramBot()
-            success = await telegram_bot.initialize()
-            self.telegram_available = success
-            if success:
-                logger.info("📱 Telegram bot inicializado com sucesso!")
-            else:
-                logger.warning("⚠️ Telegram bot não pôde ser inicializado")
-        except Exception as e:
-            logger.warning(f"⚠️ Telegram não disponível: {e}")
-            self.telegram_available = False
-
-    async def run_verification(self):
-        """Executa verificação de consistência"""
-        try:
-            if self.analyser:
-                real_balance = await self.analyser.get_balance()
-                bot_balance = 1000.00
-                
-                discrepancy = abs(real_balance - bot_balance)
-                if discrepancy > 1.0:
-                    logger.error(f"🔴 DISCREPÂNCIA DE SALDO: Bybit=${real_balance:.2f} vs Bot=${bot_balance:.2f} (Dif: ${discrepancy:.2f})")
-                else:
-                    logger.info(f"✅ Saldos sincronizados: ${real_balance:.2f}")
-                    
-        except Exception as e:
-            logger.error(f"❌ Erro na verificação: {e}")
-
-def main():
-    """Função principal"""
+@app.route('/start', methods=['POST'])
+def start_bot():
+    """Inicia o bot"""
+    global trading_bot, bot_thread, real_trading_mode
+    
     try:
-        ultrabot_app = UltraBotApp()
+        data = request.get_json()
+        real_trading = data.get('real_trading', False) if data else real_trading_mode
         
-        asyncio.run(ultrabot_app.initialize())
+        if trading_bot and trading_bot.is_running:
+            return jsonify({'success': False, 'message': 'Bot já está rodando'})
         
-        logger.info("🚀 Iniciando servidor ULTRABOT PRO...")
+        # Inicializa bots
+        telegram_bot = TelegramBot()
+        trading_bot = TradingBot(telegram_bot, real_trading=real_trading)
         
-        from waitress import serve
+        # Inicia em thread separada
+        bot_thread = threading.Thread(target=trading_bot.start_bot)
+        bot_thread.daemon = True
+        bot_thread.start()
         
-        try:
-            from config import HOST, PORT
-        except ImportError:
-            HOST = "0.0.0.0"
-            PORT = 5000
-
-        logger.info(f"🌐 Servidor rodando em: http://{HOST}:{PORT}")
-        logger.info("⚠️  Usando Waitress (Produção)")
+        add_log("🤖 Bot iniciado", "info")
+        add_log(f"💼 Modo: {'REAL' if real_trading else 'SIMULADO'}", "info")
+        add_log("🧠 IA ativada e aprendendo", "info")
         
-        serve(ultrabot_app.app, host=HOST, port=PORT)
+        return jsonify({'success': True, 'message': 'Bot iniciado com sucesso'})
         
     except Exception as e:
-        logger.error(f"❌ Erro fatal: {e}")
-        sys.exit(1)
+        error_msg = f"❌ Erro ao iniciar bot: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
 
-if __name__ == "__main__":
-    main()
+@app.route('/stop', methods=['POST'])
+def stop_bot():
+    """Para o bot"""
+    global trading_bot
+    
+    try:
+        if trading_bot:
+            trading_bot.stop_bot()
+            add_log("🛑 Bot parado pelo usuário", "warning")
+            return jsonify({'success': True, 'message': 'Bot parado com sucesso'})
+        else:
+            return jsonify({'success': False, 'message': 'Nenhum bot ativo'})
+            
+    except Exception as e:
+        error_msg = f"❌ Erro ao parar bot: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/switch_mode', methods=['POST'])
+def switch_mode():
+    """Alterna entre modo real e simulado"""
+    global trading_bot, real_trading_mode, bot_thread
+    
+    try:
+        data = request.get_json()
+        new_mode = data.get('real_trading', False)
+        
+        # Para o bot se estiver rodando
+        if trading_bot and trading_bot.is_running:
+            trading_bot.stop_bot()
+            time.sleep(2)
+        
+        real_trading_mode = new_mode
+        
+        mode_text = "REAL 💰" if new_mode else "SIMULADO 🎮"
+        add_log(f"🔄 Modo alterado para: {mode_text}", "info")
+        
+        return jsonify({'success': True, 'message': f'Modo alterado para {mode_text}'})
+        
+    except Exception as e:
+        error_msg = f"❌ Erro ao alterar modo: {e}"
+        add_log(error_msg, "error")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/logs')
+def get_logs():
+    """Retorna logs atualizados"""
+    logs_html = ""
+    for log in system_logs[-20:]:
+        logs_html += f'<div class="log-entry log-{log["type"]}">[{log["time"]}] {log["message"]}</div>'
+    
+    return jsonify({'logs': logs_html})
+
+def add_log(message, log_type="info"):
+    """Adiciona log ao sistema"""
+    global system_logs
+    timestamp = time.strftime("%H:%M:%S")
+    system_logs.append({
+        "time": timestamp,
+        "message": message,
+        "type": log_type
+    })
+    # Mantém apenas os últimos 50 logs
+    system_logs = system_logs[-50:]
+
+def start_web_server():
+    """Inicia o servidor web"""
+    add_log("🌐 Servidor ULTRABOT PRO inicializado", "info")
+    add_log("⚡ Sistema 100% operacional", "info")
+    add_log("🧠 IA carregada e pronta", "info")
+    
+    logging.info(f"🌐 Servidor rodando em: http://{HOST}:{PORT}")
+    app.run(host=HOST, port=PORT, debug=False)
+
+if __name__ == '__main__':
+    start_web_server()
