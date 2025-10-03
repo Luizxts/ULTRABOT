@@ -18,11 +18,11 @@ class BybitAnalyser:
                 self.logger.warning("🎮 MODO SIMULADO ATIVADO (sem credenciais API)")
                 return False
                 
-            # ✅ TENTA CONEXÃO REAL COM BYBIT
+            # ✅ TENTA CONEXÃO REAL COM BYBIT (versão compatível)
             try:
-                from pybit import usdt_perpetual
+                from pybit import HTTP
                 
-                self.session = usdt_perpetual.HTTP(
+                self.session = HTTP(
                     endpoint="https://api-testnet.bybit.com" if self.testnet else "https://api.bybit.com",
                     api_key=self.api_key,
                     api_secret=self.api_secret
@@ -87,25 +87,3 @@ class BybitAnalyser:
                 'price_24h_pcnt': '0.02',
                 'volume_24h': '25000000'
             }
-    
-    def place_order(self, symbol, side, quantity, order_type="Market"):
-        """Coloca ordem (real ou simulada)"""
-        try:
-            if self.session and self.api_key and self.api_secret:
-                # Ordem real
-                order = self.session.place_active_order(
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    qty=quantity,
-                    time_in_force="GoodTillCancel"
-                )
-                return order
-            else:
-                # Ordem simulada
-                self.logger.info(f"🎮 ORDEM SIMULADA: {side} {quantity} {symbol}")
-                return {"result": {"order_id": f"simulated_{random.randint(1000, 9999)}"}}
-                
-        except Exception as e:
-            self.logger.error(f"❌ Erro ao colocar ordem: {e}")
-            return None
