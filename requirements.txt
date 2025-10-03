@@ -1,9 +1,11 @@
-python-telegram-bot==20.7
-flask==2.3.3
-waitress==2.1.2
-requests==2.31.0
-python-dotenv==1.0.0
-apscheduler==3.10.4
-numpy==1.24.3
-pandas==2.0.3
-pybit==2.4.1
+# requirements_minimal.txt
+requests
+ccxt
+pandas
+numpy
+python-dotenv
+scikit-learn
+pandas-ta
+aiohttp
+websocket-client
+colorama
