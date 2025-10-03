@@ -1,45 +1,85 @@
 import logging
 import random
+import os
 
 class BybitAnalyser:
     def __init__(self, testnet=True):
         self.logger = logging.getLogger(__name__)
         self.testnet = testnet
         self.session = None
+        self.api_key = os.getenv('BYBIT_API_KEY', '')
+        self.api_secret = os.getenv('BYBIT_API_SECRET', '')
         
-    def initialize_session(self, api_key, api_secret):
-        """Inicializa sessão com Bybit (simulada)"""
+    def initialize_session(self):
+        """Inicializa sessão com Bybit (real ou simulada)"""
         try:
-            if self.testnet:
-                self.logger.warning("🎮 MODO SIMULADO ATIVADO")
-            else:
-                self.logger.info("💰 MODO REAL ATIVADO - Conexão Bybit simulada")
+            # ✅ VERIFICA SE TEM CREDENCIAIS PARA MODO REAL
+            if not self.api_key or not self.api_secret:
+                self.logger.warning("🎮 MODO SIMULADO ATIVADO (sem credenciais API)")
+                return False
+                
+            # ✅ TENTA CONEXÃO REAL COM BYBIT
+            try:
+                from pybit import usdt_perpetual
+                
+                self.session = usdt_perpetual.HTTP(
+                    endpoint="https://api-testnet.bybit.com" if self.testnet else "https://api.bybit.com",
+                    api_key=self.api_key,
+                    api_secret=self.api_secret
+                )
+                
+                # Testa a conexão
+                balance = self.get_balance_real()
+                self.logger.info(f"💰 MODO REAL ATIVADO - Saldo: ${balance}")
+                return True
+                
+            except ImportError:
+                self.logger.warning("📚 Biblioteca pybit não disponível - Modo Simulado")
+                return False
                 
         except Exception as e:
             self.logger.error(f"❌ Erro ao conectar com Bybit: {e}")
+            self.logger.warning("🔄 Modo simulado ativado devido ao erro")
+            return False
+    
+    def get_balance_real(self):
+        """Obtém saldo real da Bybit"""
+        try:
+            if self.session:
+                wallet = self.session.get_wallet_balance(coin="USDT")
+                return float(wallet['result']['USDT']['available_balance'])
+            return 0.0
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao obter saldo real: {e}")
+            return 0.0
     
     def get_balance(self):
-        """Obtém saldo da conta (simulado)"""
+        """Obtém saldo (real ou simulado)"""
         try:
-            if self.testnet:
-                return 1000.00  # Saldo simulado
+            if self.session and self.api_key and self.api_secret:
+                return self.get_balance_real()
             else:
-                return 18.34   # Saldo real simulado
+                return 1000.00  # Saldo simulado
         except Exception as e:
             self.logger.error(f"❌ Erro ao obter saldo: {e}")
             return 1000.00
     
     def get_market_data(self, symbol="BTCUSDT"):
-        """Obtém dados de mercado (simulado)"""
+        """Obtém dados de mercado (real ou simulados)"""
         try:
-            # Dados simulados para teste
-            return {
-                'last_price': str(random.randint(25000, 50000)),
-                'price_24h_pcnt': str(random.uniform(-0.05, 0.05)),
-                'volume_24h': str(random.randint(1000000, 50000000)),
-                'high_price_24h': str(random.randint(45000, 52000)),
-                'low_price_24h': str(random.randint(24000, 30000))
-            }
+            if self.session and self.api_key and self.api_secret:
+                # Dados reais da Bybit
+                ticker = self.session.latest_information_for_symbol(symbol=symbol)
+                return ticker['result'][0]
+            else:
+                # Dados simulados
+                return {
+                    'last_price': str(random.randint(25000, 50000)),
+                    'price_24h_pcnt': str(random.uniform(-0.05, 0.05)),
+                    'volume_24h': str(random.randint(1000000, 50000000)),
+                    'high_price_24h': str(random.randint(45000, 52000)),
+                    'low_price_24h': str(random.randint(24000, 30000))
+                }
         except Exception as e:
             self.logger.error(f"❌ Erro ao obter dados: {e}")
             return {
@@ -47,3 +87,25 @@ class BybitAnalyser:
                 'price_24h_pcnt': '0.02',
                 'volume_24h': '25000000'
             }
+    
+    def place_order(self, symbol, side, quantity, order_type="Market"):
+        """Coloca ordem (real ou simulada)"""
+        try:
+            if self.session and self.api_key and self.api_secret:
+                # Ordem real
+                order = self.session.place_active_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    qty=quantity,
+                    time_in_force="GoodTillCancel"
+                )
+                return order
+            else:
+                # Ordem simulada
+                self.logger.info(f"🎮 ORDEM SIMULADA: {side} {quantity} {symbol}")
+                return {"result": {"order_id": f"simulated_{random.randint(1000, 9999)}"}}
+                
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao colocar ordem: {e}")
+            return None
