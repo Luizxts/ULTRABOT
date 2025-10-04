@@ -316,16 +316,32 @@ class BybitAdvancedIntegration:
                 order_id = f"simulated_{int(time.time())}"
                 self.logger.info(f"🎯 SIMULAÇÃO: {side.upper()} {amount:.6f} {symbol}")
                 
+                # Simular execução com preço atual
+                ticker = self.get_advanced_ticker(symbol)
+                executed_price = ticker['last']
+                
                 # Log detalhado da ordem simulada
-                self.log_order_created({
-                    'id': order_id,
-                    'status': 'closed',
+                log_msg = f"""
+🎯 ORDEM SIMULAÇÃO CRIADA:
+   Side: {side.upper()}
+   Amount: {amount:.6f}
+   Price: ${executed_price:.2f}
+   ID: {order_id}
+   Status: filled
+   Stop Loss: {stop_loss if stop_loss else 'Não'}
+   Take Profit: {take_profit if take_profit else 'Não'}
+                """
+                self.logger.info(log_msg)
+                
+                return {
+                    'id': order_id, 
+                    'status': 'closed', 
                     'symbol': symbol,
                     'side': side,
-                    'amount': amount
-                }, side, amount, stop_loss, take_profit)
-                
-                return {'id': order_id, 'status': 'closed', 'symbol': symbol}
+                    'amount': amount,
+                    'price': executed_price,
+                    'filled': amount
+                }
             
             # Modo real - criar ordem na Bybit
             order_params = {
@@ -350,28 +366,22 @@ class BybitAdvancedIntegration:
             order = self.exchange.create_order(**order_params)
             
             # Log detalhado
-            self.log_order_created(order, side, amount, stop_loss, take_profit)
+            log_msg = f"""
+🎯 ORDEM REAL CRIADA:
+   Side: {side.upper()}
+   Amount: {amount:.6f}
+   ID: {order['id']}
+   Status: {order['status']}
+   Stop Loss: {stop_loss if stop_loss else 'Não'}
+   Take Profit: {take_profit if take_profit else 'Não'}
+            """
+            self.logger.info(log_msg)
             
             return order
             
         except Exception as e:
             self.logger.error(f"❌ ERRO AO CRIAR ORDEM: {e}")
             return None
-
-    def log_order_created(self, order, side, amount, sl, tp):
-        """Log detalhado da ordem criada"""
-        mode = "SIMULAÇÃO" if not self.session_initialized or self.fallback_mode else "REAL"
-        
-        log_msg = f"""
-🎯 ORDEM {mode} CRIADA:
-   Side: {side.upper()}
-   Amount: {amount:.6f}
-   ID: {order['id']}
-   Status: {order['status']}
-   Stop Loss: {sl if sl else 'Não'}
-   Take Profit: {tp if tp else 'Não'}
-        """
-        self.logger.info(log_msg)
 
     def get_open_positions(self, symbol=None):
         """Obtém posições abertas"""
