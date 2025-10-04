@@ -1,53 +1,34 @@
-# config_emergency.py - CONFIGURAÇÃO DE EMERGÊNCIA
+# config.py - CONFIGURAÇÃO FORÇADA MODO REAL
 import os
 
-# =============================================================================
-# CONFIGURAÇÕES BYBIT API - MODO EMERGÊNCIA
-# =============================================================================
 BYBIT_CONFIG = {
-    # 🔐 MODO EMERGÊNCIA - Funciona sem credenciais
-    "api_key": "emergency_mode_no_key",
-    "api_secret": "emergency_mode_no_secret",
-    
-    # 🌐 CONFIGURAÇÕES DE REDE
+    "api_key": os.getenv('BYBIT_API_KEY_REAL', ''),
+    "api_secret": os.getenv('BYBIT_API_SECRET_REAL', ''),
     "testnet": False,
     "base_url": "https://api.bybit.com",
-    
-    # 📈 CONFIGURAÇÕES DE TRADING
     "symbol": "BTCUSDT",
     "timeframe": "5",
     "category": "linear",
-    
-    # 💰 CONFIGURAÇÕES DE RISCO
     "initial_balance": 500.00,
     "risk_per_trade": 0.02,
     "max_position_size": 0.05,
     "leverage": 3,
 }
 
-# =============================================================================
-# CONFIGURAÇÕES DO BOT
-# =============================================================================
 BOT_CONFIG = {
-    "bot_name": "ULTRABOT PRO MAX SUPER - MODO EMERGÊNCIA",
-    "version": "2.0",
+    "bot_name": "ULTRABOT PRO MAX SUPER - CONTA REAL",
+    "version": "2.0", 
     "update_interval": 30,
-    "mode": "SIMULATION",
-    
+    "mode": "BYBIT_MAINNET",
     "ia_enabled": True,
     "min_confidence": 0.60,
-    
     "multi_timeframe": True,
     "timeframes": ["5m", "15m", "1h"],
-    
     "multi_asset_trading": True,
     "sentiment_analysis": True,
     "advanced_risk_management": True,
 }
 
-# =============================================================================
-# CONFIGURAÇÕES DE SEGURANÇA
-# =============================================================================
 SECURITY_CONFIG = {
     "max_drawdown": 0.08,
     "daily_loss_limit": 0.05,
@@ -57,9 +38,6 @@ SECURITY_CONFIG = {
     "volatility_check": True,
 }
 
-# =============================================================================
-# CONFIGURAÇÕES DE LOG
-# =============================================================================
 LOG_CONFIG = {
     "log_level": "INFO",
     "log_to_file": False,
@@ -67,11 +45,19 @@ LOG_CONFIG = {
 }
 
 def validate_config():
-    """Validação de emergência - sempre retorna True"""
-    print("✅ MODO EMERGÊNCIA ATIVADO - OPERANDO EM SIMULAÇÃO")
-    print("🤖 BOT: ULTRABOT PRO MAX SUPER - MODO EMERGÊNCIA")
-    print("🌐 MODO: SIMULAÇÃO - Desenvolvimento e Testes")
-    print("💰 SALDO INICIAL: $500.00")
-    print("🎯 RISCO POR TRADE: 2%")
-    print("🚀 MELHORIAS: Multi-Ativo, Sentiment Analysis, Risk Management")
+    print("✅ CONFIGURAÇÃO CONTA REAL CARREGADA")
+    print("🤖 ULTRABOT PRO MAX SUPER - CONTA REAL")
+    print("🌐 MODO: BYBIT MAINNET - DINHEIRO REAL")
+    
+    # Verificar credenciais
+    api_key = BYBIT_CONFIG['api_key']
+    api_secret = BYBIT_CONFIG['api_secret']
+    
+    if not api_key or not api_secret:
+        print("⚠️  CREDENCIAIS NÃO CONFIGURADAS - Configure no Railway:")
+        print("   BYBIT_API_KEY_REAL = sua_chave_real")
+        print("   BYBIT_API_SECRET_REAL = seu_secret_real")
+        return False
+    
+    print("💰 PRONTO PARA OPERAR COM SALDO REAL")
     return True
