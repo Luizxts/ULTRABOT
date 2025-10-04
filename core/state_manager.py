@@ -42,7 +42,6 @@ class GlobalState:
         with self._lock:
             for key, value in updates.items():
                 if '.' in key:
-                    # Para chaves aninhadas como 'performance.ciclos'
                     main_key, sub_key = key.split('.', 1)
                     if main_key in self._data and isinstance(self._data[main_key], dict):
                         self._data[main_key][sub_key] = value
@@ -57,7 +56,6 @@ class GlobalState:
             self._data['ultimos_sinais'].append(
                 f"[{datetime.now().strftime('%H:%M:%S')}] {sinal}"
             )
-            # Manter apenas os últimos 20 sinais
             if len(self._data['ultimos_sinais']) > 20:
                 self._data['ultimos_sinais'].pop(0)
     
@@ -90,26 +88,6 @@ class GlobalState:
     def ultima_atualizacao(self):
         with self._lock:
             return self._data['ultima_atualizacao']
-    
-    @property
-    def risk_metrics(self):
-        with self._lock:
-            return self._data.get('risk_metrics', {})
-    
-    @property
-    def ai_metrics(self):
-        with self._lock:
-            return self._data.get('ai_metrics', {})
-    
-    @property
-    def strategy_metrics(self):
-        with self._lock:
-            return self._data.get('strategy_metrics', {})
-    
-    @property
-    def trades_ativos(self):
-        with self._lock:
-            return self._data.get('trades_ativos', [])
     
     def to_dict(self):
         """Retornar estado completo como dict"""

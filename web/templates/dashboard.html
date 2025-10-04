@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SERAVAT PRO MAX</title>
+    <title>ULTRABOT PRO MAX - DASHBOARD</title>
     <style>
         :root {
             --bg-primary: #0f0f23;
@@ -29,11 +29,10 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.6;
-            overflow-x: hidden;
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -48,12 +47,6 @@
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            text-shadow: 0 0 10px var(--accent-green);
-        }
-        
-        .header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
         }
         
         .grid {
@@ -68,19 +61,11 @@
             border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 4px 15px rgba(0, 255, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 255, 0, 0.2);
         }
         
         .card h2 {
             color: var(--accent-green);
             margin-bottom: 15px;
-            font-size: 1.3rem;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 10px;
         }
@@ -107,27 +92,6 @@
         
         .online { color: var(--accent-green); }
         .offline { color: var(--accent-red); }
-        .warning { color: var(--accent-orange); }
-        .info { color: var(--accent-blue); }
-        
-        .signal-buy { color: var(--accent-green); }
-        .signal-sell { color: var(--accent-red); }
-        .signal-hold { color: var(--accent-orange); }
-        
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(0, 255, 0, 0.1);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 5px;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: var(--accent-green);
-            transition: width 0.3s ease;
-        }
         
         .controls {
             display: flex;
@@ -142,7 +106,6 @@
             color: var(--text-primary);
             border-radius: 5px;
             cursor: pointer;
-            transition: all 0.3s ease;
             font-family: 'Courier New', monospace;
         }
         
@@ -151,125 +114,72 @@
             color: var(--bg-primary);
         }
         
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .metric-item {
-            text-align: center;
-            padding: 10px;
-            background: rgba(0, 255, 0, 0.05);
-            border-radius: 5px;
-        }
-        
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin: 5px 0;
-        }
-        
-        .metric-label {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-        
-        .positive { color: var(--accent-green); }
-        .negative { color: var(--accent-red); }
-        .neutral { color: var(--accent-orange); }
-        
         .last-updated {
             text-align: center;
             margin-top: 20px;
             color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: var(--accent-orange);
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
-        @media (max-width: 768px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .header h1 {
-                font-size: 2rem;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 SERAVAT PRO MAX</h1>
-            <p>Apenas Para Amigos - Trading Automatizado com IA Avançada</p>
+            <h1>🤖 ULTRABOT PRO MAX SUPER</h1>
+            <p>Dashboard em Tempo Real</p>
         </div>
         
         <div class="grid">
-            <!-- Status Principal -->
             <div class="card">
                 <h2>🎯 STATUS PRINCIPAL</h2>
                 <div id="status-content">
-                    <div class="loading pulse">Carregando status...</div>
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value" id="bot-status">Carregando...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Conexão:</span>
+                        <span class="status-value" id="conexao-status">Carregando...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Ciclos:</span>
+                        <span class="status-value" id="ciclos-count">0</span>
+                    </div>
                 </div>
             </div>
             
-            <!-- Performance -->
             <div class="card">
                 <h2>📊 PERFORMANCE</h2>
                 <div id="performance-content">
-                    <div class="loading pulse">Carregando performance...</div>
-                </div>
-            </div>
-            
-            <!-- Gerenciamento de Risco -->
-            <div class="card">
-                <h2>🛡️ GESTÃO DE RISCO</h2>
-                <div id="risk-content">
-                    <div class="loading pulse">Carregando dados de risco...</div>
+                    <div class="status-item">
+                        <span class="status-label">Trades:</span>
+                        <span class="status-value" id="trades-count">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Lucro:</span>
+                        <span class="status-value" id="lucro-total">$0.00</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Saldo:</span>
+                        <span class="status-value" id="saldo-atual">$0.00</span>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <!-- Sinais Recentes -->
         <div class="card">
-            <h2>📈 SINAIS E ATIVIDADES RECENTES</h2>
+            <h2>📈 ATIVIDADES RECENTES</h2>
             <div id="signals-content">
-                <div class="loading pulse">Carregando atividades...</div>
+                <div class="status-item">
+                    <span>Sistema inicializado</span>
+                </div>
             </div>
         </div>
         
-        <!-- Métricas da IA -->
-        <div class="card">
-            <h2>🧠 INTELIGÊNCIA ARTIFICIAL</h2>
-            <div id="ai-content">
-                <div class="loading pulse">Carregando métricas da IA...</div>
-            </div>
-        </div>
-        
-        <!-- Controles -->
         <div class="card">
             <h2>🔧 CONTROLES</h2>
             <div class="controls">
                 <button class="btn" onclick="refreshData()">🔄 Atualizar</button>
                 <button class="btn" onclick="healthCheck()">❤️ Health Check</button>
-                <button class="btn" onclick="showConfig()">⚙️ Configurações</button>
             </div>
             <div id="health-status" style="margin-top: 10px;"></div>
         </div>
@@ -280,224 +190,41 @@
     </div>
 
     <script>
-        let refreshInterval;
-        
-        // Função para formatar números
-        function formatNumber(num, decimals = 2) {
-            return new Intl.NumberFormat('pt-BR', {
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals
-            }).format(num);
-        }
-        
-        // Função para formatar porcentagem
-        function formatPercent(num) {
-            return formatNumber(num) + '%';
-        }
-        
-        // Função para formatar currency
-        function formatCurrency(num) {
-            return '$' + formatNumber(num);
-        }
-        
         // Atualizar dados do dashboard
         async function updateDashboard() {
             try {
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
-                if (data.error) {
-                    throw new Error(data.error);
-                }
+                // Atualizar status
+                document.getElementById('bot-status').textContent = data.bot_status;
+                document.getElementById('conexao-status').textContent = 
+                    data.conexao_exchange ? '✅ CONECTADO' : '❌ OFFLINE';
+                document.getElementById('conexao-status').className = 
+                    data.conexao_exchange ? 'status-value online' : 'status-value offline';
                 
-                updateStatus(data);
-                updatePerformance(data);
-                updateRiskMetrics(data);
-                updateSignals(data);
-                updateAIMetrics(data);
-                updateLastUpdated(data);
+                // Atualizar performance
+                document.getElementById('ciclos-count').textContent = data.performance.ciclos;
+                document.getElementById('trades-count').textContent = data.performance.trades;
+                document.getElementById('lucro-total').textContent = '$' + data.performance.lucro.toFixed(2);
+                document.getElementById('saldo-atual').textContent = '$' + data.performance.saldo.toFixed(2);
+                
+                // Atualizar atividades
+                const signalsContent = document.getElementById('signals-content');
+                signalsContent.innerHTML = '';
+                data.ultimos_sinais.forEach(signal => {
+                    const div = document.createElement('div');
+                    div.className = 'status-item';
+                    div.innerHTML = `<span>${signal}</span>`;
+                    signalsContent.appendChild(div);
+                });
+                
+                // Atualizar hora
+                document.getElementById('last-updated-time').textContent = data.ultima_atualizacao;
                 
             } catch (error) {
                 console.error('Erro ao atualizar dashboard:', error);
-                showError('Erro ao conectar com o servidor');
             }
-        }
-        
-        // Atualizar status principal
-        function updateStatus(data) {
-            const statusContent = document.getElementById('status-content');
-            const statusClass = data.conexao_exchange ? 'online' : 'offline';
-            
-            statusContent.innerHTML = `
-                <div class="status-item">
-                    <span class="status-label">Status do Bot:</span>
-                    <span class="status-value">${data.bot_status}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Modalidade:</span>
-                    <span class="status-value">${data.modalidade}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Conexão Exchange:</span>
-                    <span class="status-value ${statusClass}">
-                        ${data.conexao_exchange ? '✅ CONECTADO' : '❌ OFFLINE'}
-                    </span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Ciclos Concluídos:</span>
-                    <span class="status-value">${data.performance.ciclos}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Trades Ativos:</span>
-                    <span class="status-value">${data.trades_ativos.length}</span>
-                </div>
-            `;
-        }
-        
-        // Atualizar performance
-        function updatePerformance(data) {
-            const perfContent = document.getElementById('performance-content');
-            const perf = data.performance;
-            const winRate = perf.trades > 0 ? (perf.vitorias / perf.trades * 100) : 0;
-            
-            perfContent.innerHTML = `
-                <div class="metrics-grid">
-                    <div class="metric-item">
-                        <div class="metric-label">Total Trades</div>
-                        <div class="metric-value">${perf.trades}</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Win Rate</div>
-                        <div class="metric-value ${winRate >= 50 ? 'positive' : 'negative'}">
-                            ${formatNumber(winRate)}%
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Lucro Total</div>
-                        <div class="metric-value ${perf.lucro >= 0 ? 'positive' : 'negative'}">
-                            ${formatCurrency(perf.lucro)}
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Saldo</div>
-                        <div class="metric-value positive">
-                            ${formatCurrency(perf.saldo)}
-                        </div>
-                    </div>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Vitórias:</span>
-                    <span class="status-value positive">${perf.vitorias}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Derrotas:</span>
-                    <span class="status-value negative">${perf.derrotas}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Profit Factor:</span>
-                    <span class="status-value ${perf.profit_factor >= 1 ? 'positive' : 'negative'}">
-                        ${formatNumber(perf.profit_factor)}
-                    </span>
-                </div>
-            `;
-        }
-        
-        // Atualizar métricas de risco
-        function updateRiskMetrics(data) {
-            const riskContent = document.getElementById('risk-content');
-            const risk = data.risk_metrics;
-            
-            if (!risk || Object.keys(risk).length === 0) {
-                riskContent.innerHTML = '<div class="loading">Dados de risco não disponíveis</div>';
-                return;
-            }
-            
-            riskContent.innerHTML = `
-                <div class="status-item">
-                    <span class="status-label">Trades Abertos:</span>
-                    <span class="status-value">${risk.trades_abertos || 0}/${risk.max_positions || 0}</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Drawdown Atual:</span>
-                    <span class="status-value ${(risk.drawdown_atual || 0) < 2 ? 'positive' : 'warning'}">
-                        ${formatNumber(risk.drawdown_atual || 0)}%
-                    </span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Loss Diário:</span>
-                    <span class="status-value ${(risk.loss_diario || 0) < 5 ? 'positive' : 'warning'}">
-                        ${formatNumber(risk.loss_diario || 0)}%
-                    </span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Pares Ativos:</span>
-                    <span class="status-value">${(risk.pares_ativos || []).join(', ') || 'Nenhum'}</span>
-                </div>
-            `;
-        }
-        
-        // Atualizar sinais recentes
-        function updateSignals(data) {
-            const signalsContent = document.getElementById('signals-content');
-            const signals = data.ultimos_sinais || [];
-            
-            if (signals.length === 0) {
-                signalsContent.innerHTML = '<div class="loading">Nenhuma atividade recente</div>';
-                return;
-            }
-            
-            let signalsHTML = '';
-            signals.forEach(signal => {
-                const signalClass = signal.includes('BUY') ? 'signal-buy' : 
-                                  signal.includes('SELL') ? 'signal-sell' : 'signal-hold';
-                
-                signalsHTML += `
-                    <div class="status-item">
-                        <span class="${signalClass}">${signal}</span>
-                    </div>
-                `;
-            });
-            
-            signalsContent.innerHTML = signalsHTML;
-        }
-        
-        // Atualizar métricas da IA
-        function updateAIMetrics(data) {
-            const aiContent = document.getElementById('ai-content');
-            const ai = data.ai_metrics || {};
-            const strategy = data.strategy_metrics || {};
-            
-            aiContent.innerHTML = `
-                <div class="metrics-grid">
-                    <div class="metric-item">
-                        <div class="metric-label">Efetividade IA</div>
-                        <div class="metric-value ${(ai.learning_effectiveness || 0) > 50 ? 'positive' : 'warning'}">
-                            ${formatNumber(ai.learning_effectiveness || 0)}%
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Trades Aprendidos</div>
-                        <div class="metric-value">${ai.total_trades_learned || 0}</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Retorno Médio</div>
-                        <div class="metric-value ${(ai.average_return || 0) > 0 ? 'positive' : 'negative'}">
-                            ${formatNumber(ai.average_return || 0)}%
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Atualizar última atualização
-        function updateLastUpdated(data) {
-            document.getElementById('last-updated-time').textContent = data.ultima_atualizacao;
-        }
-        
-        // Mostrar erro
-        function showError(message) {
-            const statusContent = document.getElementById('status-content');
-            statusContent.innerHTML = `<div class="status-item"><span class="status-value offline">${message}</span></div>`;
         }
         
         // Health check
@@ -507,7 +234,7 @@
                 const data = await response.json();
                 
                 const healthStatus = document.getElementById('health-status');
-                healthStatus.innerHTML = `<span class="online">✅ Sistema saudável</span>`;
+                healthStatus.innerHTML = '<span class="online">✅ Sistema saudável</span>';
                 
                 setTimeout(() => {
                     healthStatus.innerHTML = '';
@@ -515,7 +242,7 @@
                 
             } catch (error) {
                 const healthStatus = document.getElementById('health-status');
-                healthStatus.innerHTML = `<span class="offline">❌ Erro no health check</span>`;
+                healthStatus.innerHTML = '<span class="offline">❌ Erro no health check</span>';
             }
         }
         
@@ -524,28 +251,10 @@
             updateDashboard();
         }
         
-        // Mostrar configurações
-        function showConfig() {
-            alert('Configurações carregadas do servidor');
-        }
-        
         // Inicializar dashboard
         document.addEventListener('DOMContentLoaded', function() {
-            // Primeira atualização
             updateDashboard();
-            
-            // Atualizar a cada 5 segundos
-            refreshInterval = setInterval(updateDashboard, 5000);
-            
-            // Health check automático a cada 30 segundos
-            setInterval(healthCheck, 30000);
-        });
-        
-        // Limpar interval ao sair da página
-        window.addEventListener('beforeunload', function() {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
+            setInterval(updateDashboard, 5000);
         });
     </script>
 </body>

@@ -31,20 +31,19 @@ class ConfigManager:
         self.TRADING_CONFIG = {
             'pares_monitorados': ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'],
             'intervalo_analise': 30,
-            'risk_per_trade': 0.02,  # 2% por trade
+            'risk_per_trade': 0.02,
             'max_positions': 3,
-            'valor_por_trade': 100,  # USD por trade
-            'max_drawdown': 0.05,    # 5% máximo
-            'take_profit': 0.03,     # 3% TP
-            'stop_loss': 0.015,      # 1.5% SL
+            'valor_por_trade': 100,
+            'max_drawdown': 0.05,
+            'take_profit': 0.03,
+            'stop_loss': 0.015,
         }
         
         # IA CONFIG
         self.AI_CONFIG = {
             'confidence_threshold': 0.65,
             'learning_enabled': True,
-            'adaptive_parameters': True,
-            'pattern_recognition': True
+            'adaptive_parameters': True
         }
         
         # WEB CONFIG
@@ -53,11 +52,5 @@ class ConfigManager:
             'host': '0.0.0.0',
             'debug': False
         }
-    
-    def get(self, section, key=None):
-        if hasattr(self, section):
-            config_section = getattr(self, section)
-            return config_section if key is None else config_section.get(key)
-        return None
 
 config = ConfigManager()
