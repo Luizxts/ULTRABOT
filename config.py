@@ -30,8 +30,8 @@ BYBIT_CONFIG = {
 # =============================================================================
 BOT_CONFIG = {
     # ⚙️ CONFIGURAÇÕES GERAIS
-    "bot_name": "ULTRABOT PRO REAL",
-    "version": "1.0",
+    "bot_name": "ULTRABOT PRO MAX SUPER",
+    "version": "2.0",
     "update_interval": 60,      # 60 segundos (conservador)
     "mode": "BYBIT_MAINNET",    # MODO REAL
     
@@ -42,6 +42,11 @@ BOT_CONFIG = {
     # 📊 CONFIGURAÇÕES DE ANÁLISE
     "multi_timeframe": True,
     "timeframes": ["5m", "15m", "1h"],
+    
+    # 🚀 MELHORIAS AVANÇADAS
+    "multi_asset_trading": True,
+    "sentiment_analysis": True,
+    "advanced_risk_management": True,
 }
 
 # =============================================================================
@@ -89,6 +94,7 @@ def validate_config():
     print(f"💰 SALDO INICIAL: ${BYBIT_CONFIG['initial_balance']:.2f}")
     print(f"🎯 RISCO POR TRADE: {BYBIT_CONFIG['risk_per_trade']*100}%")
     print(f"🛡️  DRAWDOWN MÁXIMO: {SECURITY_CONFIG['max_drawdown']*100}%")
+    print(f"🚀 MELHORIAS: Multi-Ativo, Sentiment Analysis, Risk Management Avançado")
     
     return True
 

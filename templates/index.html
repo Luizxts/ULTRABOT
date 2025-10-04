@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SERAVAT PRO MAX</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1f2937;
+            --light: #f3f4f6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .header h1 {
+            color: var(--dark);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--primary), #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.profit {
+            border-left: 5px solid var(--success);
+        }
+        
+        .stat-card.loss {
+            border-left: 5px solid var(--danger);
+        }
+        
+        .stat-card.warning {
+            border-left: 5px solid var(--warning);
+        }
+        
+        .stat-card.primary {
+            border-left: 5px solid var(--primary);
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .stat-profit { color: var(--success); }
+        .stat-loss { color: var(--danger); }
+        .stat-warning { color: var(--warning); }
+        .stat-primary { color: var(--primary); }
+        
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-start { background: var(--success); color: white; }
+        .btn-stop { background: var(--danger); color: white; }
+        .btn-pause { background: var(--warning); color: white; }
+        .btn-settings { background: var(--primary); color: white; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .trades-table {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
+        }
+        
+        .trade-profit { color: var(--success); font-weight: bold; }
+        .trade-loss { color: var(--danger); font-weight: bold; }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-running { background: #dcfce7; color: #166534; }
+        .status-stopped { background: #fee2e2; color: #991b1b; }
+        .status-paused { background: #fef3c7; color: #92400e; }
+        
+        .last-update {
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🤖 SERAVAT PRO MAX</h1>
+            <p>APENAS AMIGOS PODEM USAR ESSE ROBO</p>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-start" onclick="controlBot('start')">▶️ Iniciar Bot</button>
+            <button class="btn btn-pause" onclick="controlBot('pause')">⏸️ Pausar</button>
+            <button class="btn btn-stop" onclick="controlBot('stop')">⏹️ Parar</button>
+            <button class="btn btn-settings" onclick="showSettings()">⚙️ Configurações</button>
+        </div>
+        
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card profit">
+                <div class="stat-value stat-profit" id="totalProfit">$0.00</div>
+                <div class="stat-label">Lucro Total</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-value stat-primary" id="dailyProfit">$0.00</div>
+                <div class="stat-label">Lucro Diário</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-value stat-warning" id="winRate">0%</div>
+                <div class="stat-label">Win Rate</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-value stat-primary" id="totalTrades">0</div>
+                <div class="stat-label">Total de Trades</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-value stat-primary" id="activeTrades">0</div>
+                <div class="stat-label">Trades Ativos</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-value stat-primary" id="balance">$0.00</div>
+                <div class="stat-label">Saldo Atual</div>
+            </div>
+        </div>
+        
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>📈 Performance do Robô</h3>
+                <canvas id="performanceChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>🎯 Métricas de Trading</h3>
+                <canvas id="metricsChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Trades Table -->
+        <div class="trades-table">
+            <h3>📋 Histórico de Trades</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Par</th>
+                            <th>Direção</th>
+                            <th>Tamanho</th>
+                            <th>Preço</th>
+                            <th>Lucro</th>
+                            <th>Data/Hora</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradesTableBody">
+                        <!-- Trades serão inseridos aqui via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Last Update -->
+        <div class="last-update" id="lastUpdate">
+            Última atualização: Carregando...
+        </div>
+    </div>
+
+    <script>
+        // Charts
+        const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+        const metricsCtx = document.getElementById('metricsChart').getContext('2d');
+        
+        let performanceChart, metricsChart;
+        
+        function initCharts() {
+            // Performance Chart
+            performanceChart = new Chart(performanceCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Lucro Acumulado',
+                        data: [],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Evolução do Lucro'
+                        }
+                    }
+                }
+            });
+            
+            // Metrics Chart
+            metricsChart = new Chart(metricsCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Lucrativos', 'Perdedores', 'Em Aberto'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: [
+                            '#10b981',
+                            '#ef4444',
+                            '#f59e0b'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+        
+        // API Functions
+        async function fetchData() {
+            try {
+                const [performance, trades, market] = await Promise.all([
+                    fetch('/api/performance').then(r => r.json()),
+                    fetch('/api/trades').then(r => r.json()),
+                    fetch('/api/market').then(r => r.json())
+                ]);
+                
+                updateDashboard(performance, trades, market);
+            } catch (error) {
+                console.error('Erro ao buscar dados:', error);
+            }
+        }
+        
+        function updateDashboard(performance, trades, market) {
+            // Update stats
+            document.getElementById('totalProfit').textContent = `$${performance.total_profit.toFixed(2)}`;
+            document.getElementById('dailyProfit').textContent = `$${performance.daily_profit.toFixed(2)}`;
+            document.getElementById('winRate').textContent = `${(performance.win_rate * 100).toFixed(1)}%`;
+            document.getElementById('totalTrades').textContent = performance.total_trades;
+            document.getElementById('activeTrades').textContent = performance.active_trades;
+            document.getElementById('balance').textContent = `$${performance.balance.toFixed(2)}`;
+            
+            // Update last update time
+            document.getElementById('lastUpdate').textContent = 
+                `Última atualização: ${new Date().toLocaleString()}`;
+            
+            // Update charts
+            updateCharts(performance, trades);
+            
+            // Update trades table
+            updateTradesTable(trades);
+        }
+        
+        function updateCharts(performance, trades) {
+            // Update performance chart with dummy data (em produção viria da API)
+            const labels = Array.from({length: 10}, (_, i) => `Hora ${i+1}`);
+            const data = Array.from({length: 10}, () => Math.random() * 100);
+            
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = data;
+            performanceChart.update();
+            
+            // Update metrics chart
+            const profitable = trades.filter(t => t.profit > 0).length;
+            const losing = trades.filter(t => t.profit < 0).length;
+            const open = trades.filter(t => t.status === 'OPEN').length;
+            
+            metricsChart.data.datasets[0].data = [profitable, losing, open];
+            metricsChart.update();
+        }
+        
+        function updateTradesTable(trades) {
+            const tbody = document.getElementById('tradesTableBody');
+            tbody.innerHTML = '';
+            
+            trades.slice(-10).reverse().forEach(trade => {
+                const row = document.createElement('tr');
+                const profitClass = trade.profit > 0 ? 'trade-profit' : 'trade-loss';
+                const profitSign = trade.profit > 0 ? '+' : '';
+                
+                row.innerHTML = `
+                    <td>${trade.id}</td>
+                    <td>${trade.symbol}</td>
+                    <td>${trade.side === 'BUY' ? '🟢 COMPRA' : '🔴 VENDA'}</td>
+                    <td>${trade.size}</td>
+                    <td>$${trade.price.toLocaleString()}</td>
+                    <td class="${profitClass}">${profitSign}$${trade.profit.toFixed(2)}</td>
+                    <td>${new Date(trade.timestamp).toLocaleString()}</td>
+                    <td><span class="status-badge status-running">${trade.status}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        async function controlBot(action) {
+            try {
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action })
+                });
+                
+                const result = await response.json();
+                alert(`Bot ${action === 'start' ? 'iniciado' : action === 'stop' ? 'parado' : 'pausado'} com sucesso!`);
+            } catch (error) {
+                console.error('Erro ao controlar bot:', error);
+                alert('Erro ao controlar o bot');
+            }
+        }
+        
+        function showSettings() {
+            alert('Configurações - Em desenvolvimento');
+        }
+        
+        // Initialize and start polling
+        initCharts();
+        fetchData();
+        setInterval(fetchData, 5000); // Update every 5 seconds
+    </script>
+</body>
+</html>

@@ -12,3 +12,6 @@ pytz
 cryptography
 colorama
 pyarrow
+flask
+python-telegram-bot
+ta

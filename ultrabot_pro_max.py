@@ -1,4 +1,4 @@
-# ultrabot_pro_max.py - ROBÔ PRINCIPAL CONTA REAL
+# ultrabot_pro_max.py - ROBÔ PRINCIPAL SUPER PODEROSO
 import time
 import logging
 import pandas as pd
@@ -10,10 +10,13 @@ from config import BYBIT_CONFIG, BOT_CONFIG, SECURITY_CONFIG, LOG_CONFIG, valida
 from bybit_integration import bybit_advanced
 from ai_brain_advanced import ai_brain
 from risk_manager import risk_manager
+from enhancements_manager import enhancements_manager
+from multi_asset_trader import multi_asset_trader
+from advanced_risk_manager import advanced_risk_manager
 
 class UltraBotProMax:
     """
-    Robô de Trading Avançado ULTRABOT PRO MAX - CONTA REAL
+    Robô de Trading Avançado ULTRABOT PRO MAX SUPER - CONTA REAL
     """
     
     def __init__(self):
@@ -33,6 +36,9 @@ class UltraBotProMax:
         self.bybit = bybit_advanced
         self.ai = ai_brain
         self.risk = risk_manager
+        self.enhancements = enhancements_manager
+        self.multi_asset = multi_asset_trader
+        self.advanced_risk = advanced_risk_manager
         
         # Estado do bot
         self.running = False
@@ -47,6 +53,7 @@ class UltraBotProMax:
         # Performance tracking
         self.performance_history = []
         self.last_trade_time = None
+        self.assets_signals = {}
         
         # Setup avançado
         self.setup_advanced_logging()
@@ -74,7 +81,7 @@ class UltraBotProMax:
     def initialize_system(self):
         """Inicialização completa do sistema CONTA REAL"""
         try:
-            self.logger.info("🚀 INICIALIZANDO ULTRABOT PRO MAX - CONTA REAL...")
+            self.logger.info("🚀 INICIANDO ULTRABOT PRO MAX SUPER - CONTA REAL...")
             
             # Verificação de segurança extra
             self.safety_checks()
@@ -89,9 +96,10 @@ class UltraBotProMax:
                 raise ConnectionError("Não foi possível conectar à Bybit REAL")
             
             # Status final
-            self.logger.info("🎯 ULTRABOT PRO MAX INICIALIZADO - CONTA REAL!")
+            self.logger.info("🎯 ULTRABOT PRO MAX SUPER INICIALIZADO - CONTA REAL!")
             self.logger.info(f"⏰ INICIADO EM: {self.start_time.strftime('%d/%m/%Y %H:%M:%S')}")
             self.logger.info("🛡️  MODO CONSERVADOR ATIVO - RISCO 1% POR TRADE")
+            self.logger.info("🚀 MELHORIAS ATIVAS: Multi-Ativo, Sentiment Analysis, Risk Management Avançado")
             
         except Exception as e:
             self.logger.error(f"❌ ERRO NA INICIALIZAÇÃO: {e}")
@@ -113,11 +121,66 @@ class UltraBotProMax:
             
         self.logger.info("✅ VERIFICAÇÕES DE SEGURANÇA: OK")
 
-    def get_market_analysis_advanced(self):
+    def enhanced_market_analysis(self, asset='BTCUSDT'):
+        """Análise de mercado com todas as melhorias"""
+        try:
+            # Análise tradicional
+            signal, confidence, market_health = self.get_market_analysis_advanced(asset)
+            
+            # Análise de sentimento
+            sentiment = self.enhancements.sentiment_analyzer.analyze_market_sentiment(
+                {'trend': 'bullish' if signal == 'BUY' else 'bearish'}, 
+                {'volume_trend': 'increasing'}
+            )
+            
+            # Detecção de regime
+            ohlcv_data = self.bybit.get_ohlcv_data(symbol=asset)
+            regime = self.enhancements.regime_detector.detect_regime(ohlcv_data)
+            
+            # Análise de correlação
+            correlations = self.enhancements.correlation_analyzer.analyze_correlations(ohlcv_data)
+            
+            enhanced_signal = {
+                'base_signal': signal,
+                'confidence': confidence,
+                'sentiment': sentiment,
+                'market_regime': regime,
+                'correlations': correlations,
+                'final_confidence': self.calculate_enhanced_confidence(confidence, sentiment, regime),
+                'asset': asset,
+                'timestamp': datetime.now()
+            }
+            
+            return enhanced_signal
+            
+        except Exception as e:
+            self.logger.error(f"❌ ERRO NA ANÁLISE APRIMORADA: {e}")
+            return {'base_signal': 'HOLD', 'confidence': 0.5, 'asset': asset}
+
+    def calculate_enhanced_confidence(self, base_confidence, sentiment, regime):
+        """Calcula confiança aprimorada com múltiplos fatores"""
+        confidence = base_confidence
+        
+        # Ajustar baseado no sentimento
+        sentiment_score = sentiment.get('score', 0)
+        confidence += sentiment_score * 0.2
+        
+        # Ajustar baseado no regime
+        regime_boost = {
+            'TRENDING_BULL': 0.15,
+            'TRENDING_BEAR': 0.15, 
+            'RANGING': -0.1,
+            'VOLATILE': -0.2
+        }
+        confidence += regime_boost.get(regime, 0)
+        
+        return max(0.1, min(0.95, confidence))
+
+    def get_market_analysis_advanced(self, asset='BTCUSDT'):
         """Executa análise avançada de mercado"""
         try:
             # Obter dados multi-timeframe
-            multi_tf_data = self.bybit.get_multiple_timeframes_data()
+            multi_tf_data = self.bybit.get_multiple_timeframes_data(symbol=asset)
             if not multi_tf_data:
                 self.logger.warning("⚠️ DADOS DE MERCADO INDISPONÍVEIS")
                 return "HOLD", 0.5, "UNKNOWN"
@@ -126,34 +189,92 @@ class UltraBotProMax:
             signal, confidence = self.ai.multi_timeframe_analysis(multi_tf_data)
             
             # Verificar saúde do mercado
-            market_health = self.bybit.get_market_health()
+            market_health = self.bybit.get_market_health(symbol=asset)
             
-            self.logger.info(f"🎯 ANÁLISE: {signal} | Conf: {confidence:.1%} | Saúde: {market_health}")
+            self.logger.info(f"🎯 ANÁLISE {asset}: {signal} | Conf: {confidence:.1%} | Saúde: {market_health}")
             return signal, confidence, market_health
             
         except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE: {e}")
+            self.logger.error(f"❌ ERRO NA ANÁLISE {asset}: {e}")
             return "HOLD", 0.5, "UNKNOWN"
 
-    def execute_advanced_trade(self, signal, confidence, market_health):
-        """Executa trade avançado com gerenciamento de risco CONTA REAL"""
+    def multi_asset_trading_cycle(self):
+        """Ciclo de trading multi-ativos"""
         try:
-            # Obter condições de mercado para risk manager
-            ticker = self.bybit.get_advanced_ticker()
-            market_conditions = {
-                'spread': ticker['spread'] if ticker else 0.1,
-                'volume_health': market_health,
-                'volume': ticker['volume'] if ticker else 0
-            }
+            self.assets_signals = {}
             
-            # Calcular tamanho da posição CONSERVADOR
-            position_size = self.bybit.calculate_position_size(
-                balance=self.balance,
-                risk_per_trade=self.config['risk_per_trade'],  # 1%
-                stop_loss_pct=0.02  # Stop-loss de 2%
+            # Analisar múltiplos ativos
+            assets = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'] if self.bot_config['multi_asset_trading'] else ['BTCUSDT']
+            
+            for asset in assets:
+                signal_data = self.enhanced_market_analysis(asset)
+                self.assets_signals[asset] = signal_data
+            
+            # Diversificar e alocar
+            diversified_signals = self.multi_asset.diversify_signals(self.assets_signals)
+            
+            # Aplicar penalidades de correlação
+            penalized_signals = self.multi_asset.calculate_correlation_penalties(diversified_signals)
+            
+            # Calcular alocação de portfólio
+            portfolio_allocation = self.multi_asset.calculate_portfolio_allocation(
+                self.balance, penalized_signals
             )
             
-            # Verificar com risk manager
+            # Executar trades
+            for asset, allocation in portfolio_allocation.items():
+                if allocation['capital'] > self.balance * 0.01:  # Mínimo 1%
+                    signal_data = penalized_signals[asset]
+                    if self.should_execute_trade(signal_data):
+                        self.execute_enhanced_trade(asset, signal_data, allocation)
+                
+        except Exception as e:
+            self.logger.error(f"❌ ERRO NO CICLO MULTI-ATIVOS: {e}")
+
+    def should_execute_trade(self, signal_data):
+        """Verifica se deve executar trade baseado em múltiplos fatores"""
+        confidence = signal_data.get('final_confidence', 0)
+        base_signal = signal_data.get('base_signal', 'HOLD')
+        sentiment = signal_data.get('sentiment', {}).get('classification', 'NEUTRAL')
+        regime = signal_data.get('market_regime', 'UNKNOWN')
+        
+        # Critérios rigorosos
+        conditions = [
+            base_signal != "HOLD",
+            confidence >= self.bot_config['min_confidence'],
+            self.cycle_count > 2,  # Esperar ciclos iniciais
+            sentiment in ['BULLISH', 'BEARISH'],  # Sentimento definido
+            regime in ['TRENDING_BULL', 'TRENDING_BEAR']  # Mercado em tendência
+        ]
+        
+        return all(conditions)
+
+    def execute_enhanced_trade(self, asset, signal_data, allocation):
+        """Executa trade avançado com todas as melhorias"""
+        try:
+            signal = signal_data['base_signal']
+            confidence = signal_data['final_confidence']
+            
+            # Obter condições de mercado
+            ticker = self.bybit.get_advanced_ticker(symbol=asset)
+            market_health = self.bybit.get_market_health(symbol=asset)
+            
+            market_conditions = {
+                'spread': ticker['spread'],
+                'volume_health': market_health,
+                'volume': ticker['volume'],
+                'sentiment': signal_data['sentiment'],
+                'regime': signal_data['market_regime']
+            }
+            
+            # Calcular tamanho da posição com risk management avançado
+            position_size = self.advanced_risk.adaptive_position_sizing(
+                market_volatility=ticker['spread'] / 100,  # Estimativa de volatilidade
+                account_balance=self.balance,
+                win_rate=self.risk.get_risk_metrics().get('win_rate', 0.5)
+            )
+            
+            # Verificar com risk manager avançado
             can_trade, checks, risk_state = self.risk.can_execute_trade(
                 current_balance=self.balance,
                 signal_strength=confidence,
@@ -165,11 +286,11 @@ class UltraBotProMax:
                 self.logger.warning(f"🚫 TRADE BLOQUEADO: {risk_state['reason']}")
                 return False
             
-            # Preparar ordem CONTA REAL
-            symbol = f"{self.config['symbol'].replace('USDT', '')}/USDT:USDT"
+            # Preparar ordem
+            symbol = f"{asset.replace('USDT', '')}/USDT:USDT"
             current_price = ticker['last']
             
-            # Calcular stop loss e take profit CONSERVADORES
+            # Calcular stop loss e take profit inteligentes
             if signal == "BUY":
                 stop_loss = current_price * 0.98  # 2% stop loss
                 take_profit = current_price * 1.03  # 3% take profit
@@ -201,7 +322,9 @@ class UltraBotProMax:
                     'balance_before': self.balance,
                     'order_id': order['id'],
                     'market_health': market_health,
-                    'risk_checks': checks
+                    'risk_checks': checks,
+                    'asset': asset,
+                    'enhanced_data': signal_data
                 }
                 
                 self.risk.record_trade(trade_data)
@@ -210,8 +333,10 @@ class UltraBotProMax:
                 # Atualizar métricas
                 self.update_trade_metrics(signal)
                 
-                self.logger.info(f"✅ TRADE REAL EXECUTADO: {signal} | Size: {position_size:.6f}")
+                self.logger.info(f"✅ TRADE REAL EXECUTADO: {signal} {position_size:.6f} {asset}")
                 self.logger.info(f"💰 Stop Loss: ${stop_loss:.2f} | Take Profit: ${take_profit:.2f}")
+                self.logger.info(f"🎯 Confiança: {confidence:.1%} | Sentimento: {signal_data['sentiment']['classification']}")
+                
                 return True
             else:
                 self.logger.error("❌ FALHA NA EXECUÇÃO DA ORDEM REAL")
@@ -249,36 +374,16 @@ class UltraBotProMax:
             self.cycle_count += 1
             self.logger.info(f"🔄 CICLO #{self.cycle_count} - CONTA REAL")
             
-            # 1. Análise de Mercado
-            signal, confidence, market_health = self.get_market_analysis_advanced()
-            
-            # 2. Verificar se deve executar trade (critérios mais rigorosos)
-            should_trade = (
-                signal != "HOLD" and 
-                confidence >= self.bot_config['min_confidence'] and
-                market_health == "HEALTHY" and
-                self.cycle_count > 2  # Esperar alguns ciclos antes do primeiro trade
-            )
-            
-            if should_trade:
-                self.logger.info(f"🎯 CONDIÇÕES ATENDIDAS - EXECUTANDO TRADE REAL: {signal}")
-                trade_executed = self.execute_advanced_trade(signal, confidence, market_health)
-                
-                if trade_executed:
-                    self.logger.info("✅ TRADE REAL EXECUTADO COM SUCESSO")
-                else:
-                    self.logger.warning("⚠️ TRADE REAL NÃO EXECUTADO")
+            if self.bot_config['multi_asset_trading']:
+                self.multi_asset_trading_cycle()
             else:
-                if signal == "HOLD":
-                    self.logger.info("⏭️  Sinal: HOLD - Aguardando oportunidade")
-                elif confidence < self.bot_config['min_confidence']:
-                    self.logger.info(f"⏭️  Confiança insuficiente: {confidence:.1%} < {self.bot_config['min_confidence']:.1%}")
-                elif market_health != "HEALTHY":
-                    self.logger.info(f"⏭️  Saúde do mercado: {market_health}")
-                elif self.cycle_count <= 2:
-                    self.logger.info("⏭️  Aquecimento inicial - Aguardando estabilização")
+                # Ciclo tradicional single asset
+                signal_data = self.enhanced_market_analysis()
+                if self.should_execute_trade(signal_data):
+                    allocation = {'capital': self.balance * 0.5}  # 50% para single asset
+                    self.execute_enhanced_trade('BTCUSDT', signal_data, allocation)
             
-            # 3. Atualizar status e métricas
+            # Atualizar status e métricas
             self.update_system_status()
             
             self.logger.info(f"✅ CICLO #{self.cycle_count} CONCLUÍDO")
@@ -294,7 +399,7 @@ class UltraBotProMax:
             
             # Exibir status
             status_msg = f"""
-🤖 ULTRABOT PRO MAX - CONTA REAL
+🤖 ULTRABOT PRO MAX SUPER - CONTA REAL
 
 📊 PERFORMANCE REAL:
    ► Ciclos: {self.cycle_count}
@@ -313,6 +418,11 @@ class UltraBotProMax:
    ► Streak Atual: {risk_metrics.get('current_streak', 0)}
    ► Trading Permitido: {risk_metrics.get('trading_allowed', False)}
 
+🚀 MELHORIAS:
+   ► Multi-Ativo: {'✅' if self.bot_config['multi_asset_trading'] else '❌'}
+   ► Análise Sentimento: {'✅' if self.bot_config['sentiment_analysis'] else '❌'}
+   ► Risk Management Avançado: {'✅' if self.bot_config['advanced_risk_management'] else '❌'}
+
 ⏰ PRÓXIMA ANÁLISE: {self.bot_config['update_interval']}s
 🕒 {datetime.now().strftime('%H:%M:%S')}
             """
@@ -327,17 +437,10 @@ class UltraBotProMax:
             risk_metrics = self.risk.get_risk_metrics()
             
             emergency_conditions = [
-                # Drawdown excessivo
                 risk_metrics.get('daily_drawdown', 0) > self.security_config['max_drawdown'],
-                
-                # Muitas perdas consecutivas
                 self.consecutive_losses >= self.security_config['max_consecutive_losses'],
-                
-                # Perda diária excessiva
-                risk_metrics.get('daily_pl', 0) < -self.balance * 0.03,  # 3% de perda diária
-                
-                # Muitos trades em pouco tempo
-                risk_metrics.get('daily_trades', 0) > 10,  # Máximo 10 trades/dia
+                risk_metrics.get('daily_pl', 0) < -self.balance * 0.03,
+                risk_metrics.get('daily_trades', 0) > 10,
             ]
             
             if any(emergency_conditions):
@@ -354,16 +457,17 @@ class UltraBotProMax:
         """Inicia o robô de trading CONTA REAL"""
         try:
             self.running = True
-            self.logger.info("🚀 INICIANDO ULTRABOT PRO MAX - CONTA REAL...")
+            self.logger.info("🚀 INICIANDO ULTRABOT PRO MAX SUPER - CONTA REAL...")
             self.logger.info("🎯 MODO: BYBIT MAINNET - DINHEIRO REAL")
             self.logger.info("🛡️  RISCO: 1% POR TRADE - MODO CONSERVADOR")
+            self.logger.info("🚀 MELHORIAS: Multi-Ativo, Sentiment Analysis, Advanced Risk Management")
             self.logger.info("📊 MONITORAMENTO EM TEMPO REAL ATIVO")
             
-            print("\n" + "="*60)
-            print("🤖 ULTRABOT PRO MAX - CONTA REAL INICIADO")
+            print("\n" + "="*80)
+            print("🤖 ULTRABOT PRO MAX SUPER - CONTA REAL INICIADO")
             print("💰 OPERANDO COM DINHEIRO REAL - EXTREMO CUIDADO")
             print("🎯 Pressione Ctrl+C para parar imediatamente")
-            print("="*60 + "\n")
+            print("="*80 + "\n")
             
             while self.running:
                 try:
@@ -385,7 +489,6 @@ class UltraBotProMax:
                     break
                 except Exception as e:
                     self.logger.error(f"❌ ERRO NO LOOP PRINCIPAL: {e}")
-                    # Continuar executando mesmo com erro
                     time.sleep(self.bot_config['update_interval'])
                     
         except Exception as e:
@@ -402,7 +505,7 @@ class UltraBotProMax:
         risk_metrics = self.risk.get_risk_metrics()
         
         final_report = f"""
-🛑 ULTRABOT PRO MAX - RELATÓRIO FINAL CONTA REAL
+🛑 ULTRABOT PRO MAX SUPER - RELATÓRIO FINAL CONTA REAL
 
 📈 ESTATÍSTICAS REAIS:
    ► Tempo de Execução: {runtime}
@@ -418,6 +521,11 @@ class UltraBotProMax:
    ► Streak Máximo (Wins): {risk_metrics.get('max_consecutive_wins', 0)}
    ► Streak Máximo (Losses): {risk_metrics.get('max_consecutive_losses', 0)}
 
+🚀 MELHORIAS UTILIZADAS:
+   ► Multi-Ativo Trading: {self.bot_config['multi_asset_trading']}
+   ► Sentiment Analysis: {self.bot_config['sentiment_analysis']}
+   ► Advanced Risk Management: {self.bot_config['advanced_risk_management']}
+
 ⏰ ENCERRADO EM: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
 
 💡 RECOMENDAÇÃO:
@@ -427,20 +535,21 @@ class UltraBotProMax:
         """
         
         print(final_report)
-        self.logger.info("🛑 ULTRABOT PRO MAX PARADO - CONTA REAL")
+        self.logger.info("🛑 ULTRABOT PRO MAX SUPER PARADO - CONTA REAL")
 
 def main():
     """Função principal CONTA REAL"""
     print("""
-╔══════════════════════════════════════════════════════════════╗
-║                   ULTRABOT PRO MAX v1.0                      ║
-║                                                              ║
-║          CONTA REAL - BYBIT MAINNET                          ║
-║          OPERANDO COM DINHEIRO REAL                          ║
-║          MODO CONSERVADOR - RISCO 1%                         ║
-║                                                              ║
-║                  [EXTREMO CUIDADO]                           ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                   ULTRABOT PRO MAX SUPER v2.0                                ║
+║                                                                              ║
+║          CONTA REAL - BYBIT MAINNET                                          ║
+║          OPERANDO COM DINHEIRO REAL                                          ║
+║          MODO CONSERVADOR - RISCO 1%                                         ║
+║          MELHORIAS: Multi-Ativo, Sentiment Analysis, Advanced Risk          ║
+║                                                                              ║
+║                  [EXTREMO CUIDADO - DINHEIRO REAL]                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
     """)
     
     try:
