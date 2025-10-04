@@ -1,63 +1,41 @@
-# config.py - CONFIGURAÇÃO FORÇADA MODO REAL
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# CONFIGURAÇÃO BYBIT REAL
 BYBIT_CONFIG = {
-    "api_key": os.getenv('BYBIT_API_KEY_REAL', ''),
-    "api_secret": os.getenv('BYBIT_API_SECRET_REAL', ''),
-    "testnet": False,
-    "base_url": "https://api.bybit.com",
-    "symbol": "BTCUSDT",
-    "timeframe": "5",
-    "category": "linear",
-    "initial_balance": 500.00,
-    "risk_per_trade": 0.02,
-    "max_position_size": 0.05,
-    "leverage": 3,
+    'api_key': os.getenv('BYBIT_API_KEY_REAL'),
+    'api_secret': os.getenv('BYBIT_API_SECRET_REAL'),
+    'testnet': os.getenv('BYBIT_TESTNET', 'false').lower() == 'true'
 }
 
-BOT_CONFIG = {
-    "bot_name": "ULTRABOT PRO MAX SUPER - CONTA REAL",
-    "version": "2.0", 
-    "update_interval": 30,
-    "mode": "BYBIT_MAINNET",
-    "ia_enabled": True,
-    "min_confidence": 0.60,
-    "multi_timeframe": True,
-    "timeframes": ["5m", "15m", "1h"],
-    "multi_asset_trading": True,
-    "sentiment_analysis": True,
-    "advanced_risk_management": True,
+# TELEGRAM CONFIG
+TELEGRAM_CONFIG = {
+    'bot_token': os.getenv('TELEGRAM_BOT_TOKEN'),
+    'chat_id': os.getenv('TELEGRAM_CHAT_ID')
 }
 
-SECURITY_CONFIG = {
-    "max_drawdown": 0.08,
-    "daily_loss_limit": 0.05,
-    "max_consecutive_losses": 5,
-    "auto_stop_loss": True,
-    "emergency_stop": True,
-    "volatility_check": True,
+# TRADING CONFIG
+TRADING_CONFIG = {
+    'ativo_principal': 'BTCUSDT',
+    'pares_monitorados': ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+    'intervalo_analise': 30,
+    'risk_per_trade': 0.02,
+    'max_positions': 3,
+    'modo_real': True,
+    'valor_por_trade': 50
 }
 
-LOG_CONFIG = {
-    "log_level": "INFO",
-    "log_to_file": False,
-    "log_colors": False,
+# WEB DASHBOARD CONFIG
+WEB_CONFIG = {
+    'port': int(os.getenv('PORT', 5000)),
+    'host': '0.0.0.0',
+    'debug': False
 }
 
-def validate_config():
-    print("✅ CONFIGURAÇÃO CONTA REAL CARREGADA")
-    print("🤖 ULTRABOT PRO MAX SUPER - CONTA REAL")
-    print("🌐 MODO: BYBIT MAINNET - DINHEIRO REAL")
-    
-    # Verificar credenciais
-    api_key = BYBIT_CONFIG['api_key']
-    api_secret = BYBIT_CONFIG['api_secret']
-    
-    if not api_key or not api_secret:
-        print("⚠️  CREDENCIAIS NÃO CONFIGURADAS - Configure no Railway:")
-        print("   BYBIT_API_KEY_REAL = sua_chave_real")
-        print("   BYBIT_API_SECRET_REAL = seu_secret_real")
-        return False
-    
-    print("💰 PRONTO PARA OPERAR COM SALDO REAL")
-    return True
+# LOGGING CONFIG
+LOGGING_CONFIG = {
+    'level': os.getenv('LOG_LEVEL', 'INFO'),
+    'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+}

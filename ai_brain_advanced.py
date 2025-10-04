@@ -1,311 +1,188 @@
-# ai_brain_advanced.py - IA AVANÇADA MENOS CONSERVADORA
 import pandas as pd
 import numpy as np
 import logging
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-import joblib
-import os
 from datetime import datetime
 
+logger = logging.getLogger('AIBrain')
+
 class AIBrainAdvanced:
-    """
-    Sistema de IA avançado para análise de mercado - MENOS CONSERVADOR
-    """
-    
     def __init__(self):
-        self.logger = logging.getLogger('AIBrainAdvanced')
-        self.model = None
-        self.scaler = StandardScaler()
-        self.is_trained = False
-        self.setup_ai()
-        
-    def setup_ai(self):
-        """Configuração inicial da IA"""
+        self.historico_sinais = []
+        logger.info("✅ IA AVANÇADA INICIALIZADA")
+    
+    def calcular_indicadores(self, df):
+        """Calcular indicadores técnicos sem TA-Lib"""
         try:
-            # Tentar carregar modelo existente
-            if os.path.exists('ai_model.joblib'):
-                self.model = joblib.load('ai_model.joblib')
-                self.is_trained = True
-                self.logger.info("✅ MODELO DE IA CARREGADO COM SUCESSO")
-            else:
-                self.logger.info("🔄 MODELO NÃO ENCONTRADO, TREINANDO NOVO MODELO...")
-                self.train_new_model()
-                
-        except Exception as e:
-            self.logger.error(f"❌ ERRO AO CONFIGURAR IA: {e}")
-            self.train_new_model()
-
-    def train_new_model(self):
-        """Treina novo modelo de IA com dados simulados"""
-        try:
-            self.logger.info("🤖 INICIANDO TREINAMENTO DO MODELO DE IA...")
+            # EMA
+            df['ema_9'] = df['close'].ewm(span=9).mean()
+            df['ema_21'] = df['close'].ewm(span=21).mean()
+            df['ema_50'] = df['close'].ewm(span=50).mean()
             
-            # Gerar dados de treinamento realistas
-            X, y = self.generate_training_data()
+            # RSI
+            df['rsi'] = self.calcular_rsi(df['close'])
             
-            # Treinar modelo
-            self.model = RandomForestClassifier(
-                n_estimators=100,
-                max_depth=10,
-                random_state=42
-            )
-            
-            self.model.fit(X, y)
-            self.is_trained = True
-            
-            # Salvar modelo
-            joblib.dump(self.model, 'ai_model.joblib')
-            
-            # Avaliar modelo
-            accuracy = self.model.score(X, y)
-            self.logger.info(f"✅ MODELO TREINADO COM SUCESSO! Accuracy: {accuracy:.2%}")
-            
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NO TREINAMENTO DA IA: {e}")
-            self.is_trained = False
-
-    def generate_training_data(self):
-        """Gera dados de treinamento realistas"""
-        n_samples = 1000
-        n_features = 10
-        
-        # Gerar features técnicas realistas
-        X = np.random.randn(n_samples, n_features)
-        
-        # Gerar labels (60% HOLD, 20% BUY, 20% SELL) - MAIS AGRESSIVO!
-        y = np.random.choice(['HOLD', 'BUY', 'SELL'], 
-                           size=n_samples, 
-                           p=[0.6, 0.2, 0.2])  # ERA [0.7, 0.15, 0.15]
-        
-        return X, y
-
-    def calculate_technical_indicators(self, df):
-        """Calcula indicadores técnicos avançados"""
-        try:
-            if len(df) < 20:
-                return None
-                
-            # Preços
-            closes = df['close'].values
-            highs = df['high'].values
-            lows = df['low'].values
-            volumes = df['volume'].values
-            
-            # Indicadores básicos
-            sma_20 = np.mean(closes[-20:])
-            sma_50 = np.mean(closes[-50:]) if len(closes) >= 50 else sma_20
-            
-            # RSI (simplificado)
-            gains = np.where(np.diff(closes) > 0, np.diff(closes), 0)
-            losses = np.where(np.diff(closes) < 0, -np.diff(closes), 0)
-            avg_gain = np.mean(gains[-14:]) if len(gains) >= 14 else 1
-            avg_loss = np.mean(losses[-14:]) if len(losses) >= 14 else 1
-            rsi = 100 - (100 / (1 + avg_gain / (avg_loss + 1e-8)))
-            
-            # MACD (simplificado)
-            ema_12 = self.ema(closes, 12)
-            ema_26 = self.ema(closes, 26)
-            macd = ema_12 - ema_26
+            # MACD
+            df['macd'], df['macd_signal'] = self.calcular_macd(df['close'])
             
             # Bollinger Bands
-            bb_upper = sma_20 + 2 * np.std(closes[-20:])
-            bb_lower = sma_20 - 2 * np.std(closes[-20:])
-            bb_position = (closes[-1] - bb_lower) / (bb_upper - bb_lower)
+            df['bb_upper'], df['bb_lower'] = self.calcular_bollinger_bands(df['close'])
             
-            # Volume analysis
-            volume_sma = np.mean(volumes[-20:])
-            volume_ratio = volumes[-1] / volume_sma
+            # Volume SMA
+            df['volume_sma'] = df['volume'].rolling(window=20).mean()
             
-            # Price momentum
-            momentum_5 = (closes[-1] / closes[-5] - 1) * 100 if len(closes) >= 5 else 0
-            momentum_10 = (closes[-1] / closes[-10] - 1) * 100 if len(closes) >= 10 else 0
+            # ATR
+            df['atr'] = self.calcular_atr(df)
             
-            # Feature vector
-            features = np.array([
-                closes[-1] / sma_20 - 1,      # Price vs SMA20
-                sma_20 / sma_50 - 1,          # SMA20 vs SMA50  
-                rsi / 100 - 0.5,              # RSI normalized
-                macd / closes[-1] * 100,      # MACD normalized
-                bb_position - 0.5,            # Bollinger position
-                volume_ratio - 1,             # Volume ratio
-                momentum_5 / 100,             # 5-period momentum
-                momentum_10 / 100,            # 10-period momentum
-                np.random.normal(0, 0.1),     # Noise feature 1
-                np.random.normal(0, 0.1)      # Noise feature 2
-            ])
-            
-            return features
+            return df
             
         except Exception as e:
-            self.logger.error(f"❌ ERRO NOS INDICADORES TÉCNICOS: {e}")
-            return np.random.randn(10)  # Fallback
-
-    def ema(self, prices, period):
-        """Calcula EMA"""
-        if len(prices) < period:
-            return np.mean(prices)
-        return pd.Series(prices).ewm(span=period).mean().iloc[-1]
-
-    def analyze_single_timeframe(self, df):
-        """Analisa um único timeframe - MENOS CONSERVADOR!"""
-        try:
-            if len(df) < 20:
-                return "HOLD", 0.5
-                
-            # Calcular indicadores
-            features = self.calculate_technical_indicators(df)
-            if features is None:
-                return "HOLD", 0.5
+            logger.error(f"❌ ERRO AO CALCULAR INDICADORES: {e}")
+            return df
+    
+    def calcular_rsi(self, prices, period=14):
+        """Calcular RSI manualmente"""
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+    
+    def calcular_macd(self, prices, fast=12, slow=26, signal=9):
+        """Calcular MACD manualmente"""
+        ema_fast = prices.ewm(span=fast).mean()
+        ema_slow = prices.ewm(span=slow).mean()
+        macd = ema_fast - ema_slow
+        macd_signal = macd.ewm(span=signal).mean()
+        return macd, macd_signal
+    
+    def calcular_bollinger_bands(self, prices, period=20, std=2):
+        """Calcular Bollinger Bands manualmente"""
+        sma = prices.rolling(window=period).mean()
+        rolling_std = prices.rolling(window=period).std()
+        upper_band = sma + (rolling_std * std)
+        lower_band = sma - (rolling_std * std)
+        return upper_band, lower_band
+    
+    def calcular_atr(self, df, period=14):
+        """Calcular ATR manualmente"""
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        true_range = np.maximum(np.maximum(high_low, high_close), low_close)
+        atr = true_range.rolling(window=period).mean()
+        return atr
+    
+    def analisar_mercado(self, dados_mercado):
+        """Analisar dados de mercado e gerar sinais"""
+        sinais = []
+        
+        for par, timeframes in dados_mercado.items():
+            if timeframes is None:
+                continue
             
-            # Usar IA se treinada
-            if self.is_trained:
-                try:
-                    # Fazer predição
-                    prediction = self.model.predict([features])[0]
-                    probas = self.model.predict_proba([features])[0]
-                    confidence = np.max(probas)
-                    
-                    # AJUSTE CRÍTICO: Tornar menos conservador
-                    if confidence < 0.6:  # ERA 0.7
-                        # Análise heurística de fallback
-                        return self.heuristic_analysis(df)
-                    
-                    return prediction, confidence
-                    
-                except Exception as e:
-                    self.logger.warning(f"⚠️ IA falhou, usando análise heurística: {e}")
-                    return self.heuristic_analysis(df)
-            else:
-                # Análise heurística se IA não disponível
-                return self.heuristic_analysis(df)
-                
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE: {e}")
-            return "HOLD", 0.5
-
-    def heuristic_analysis(self, df):
-        """Análise heurística quando IA não está disponível - MENOS CONSERVADOR!"""
-        try:
-            if len(df) < 10:
-                return "HOLD", 0.5
-                
-            closes = df['close'].values
-            volumes = df['volume'].values
-            
-            # Tendência de curto prazo
-            price_trend_5 = (closes[-1] / closes[-5] - 1) * 100 if len(closes) >= 5 else 0
-            price_trend_10 = (closes[-1] / closes[-10] - 1) * 100 if len(closes) >= 10 else 0
-            
-            # Volume analysis
-            volume_trend = volumes[-1] / np.mean(volumes[-5:]) if len(volumes) >= 5 else 1
-            
-            # ANÁLISE MENOS CONSERVADORA - MODIFICAÇÃO IMPORTANTE!
-            buy_signals = 0
-            sell_signals = 0
-            
-            # Critérios de BUY (mais sensíveis)
-            if price_trend_5 > 0.5:  # ERA 1.0
-                buy_signals += 1
-            if price_trend_10 > 0.8:  # ERA 1.5  
-                buy_signals += 1
-            if volume_trend > 1.1:    # ERA 1.2
-                buy_signals += 1
-            if closes[-1] > np.mean(closes[-20:]):  # Preço acima da média
-                buy_signals += 1
-                
-            # Critérios de SELL (mais sensíveis)
-            if price_trend_5 < -0.5:  # ERA -1.0
-                sell_signals += 1
-            if price_trend_10 < -0.8:  # ERA -1.5
-                sell_signals += 1
-            if volume_trend > 1.1 and price_trend_5 < 0:  # Volume alto com queda
-                sell_signals += 1
-            if closes[-1] < np.mean(closes[-20:]):  # Preço abaixo da média
-                sell_signals += 1
-            
-            # Tomada de decisão MENOS CONSERVADORA
-            confidence = min(0.9, max(0.5, (max(buy_signals, sell_signals) / 4)))
-            
-            if buy_signals >= 2 and buy_signals > sell_signals:  # ERA 3
-                return "BUY", confidence
-            elif sell_signals >= 2 and sell_signals > buy_signals:  # ERA 3
-                return "SELL", confidence
-            else:
-                return "HOLD", 0.5
-                
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE HEURÍSTICA: {e}")
-            return "HOLD", 0.5
-
-    def multi_timeframe_analysis(self, multi_tf_data):
-        """Análise multi-timeframe - MENOS CONSERVADOR!"""
-        try:
-            if not multi_tf_data:
-                return "HOLD", 0.5
-                
-            # Analisar cada timeframe
-            signals = []
-            confidences = []
-            
-            for tf, data in multi_tf_data.items():
-                if len(data) < 10:
+            try:
+                # Usar timeframe de 15m para análise principal
+                df_15m = timeframes.get('15m')
+                if df_15m is None or len(df_15m) < 50:
                     continue
-                    
-                signal, confidence = self.analyze_single_timeframe(data)
-                signals.append(signal)
-                confidences.append(confidence)
-            
-            if not signals:
-                return "HOLD", 0.5
                 
-            # Decisão final MENOS CONSERVADORA
-            buy_signals = signals.count("BUY")
-            sell_signals = signals.count("SELL") 
-            hold_signals = signals.count("HOLD")
-            
-            avg_confidence = np.mean(confidences)
-            
-            # MODIFICAÇÃO CRÍTICA: Tornar menos conservador!
-            if buy_signals >= 1 and avg_confidence > 0.55:  # ERA 2 e 0.65
-                final_signal = "BUY"
-            elif sell_signals >= 1 and avg_confidence > 0.55:  # ERA 2 e 0.65
-                final_signal = "SELL"
-            else:
-                final_signal = "HOLD"
-                avg_confidence = 0.5
-            
-            self.logger.info(f"🎯 ANÁLISE MULTI-TF: {final_signal} | Conf: {avg_confidence:.1%} | "
-                           f"BUY: {buy_signals}, SELL: {sell_signals}, HOLD: {hold_signals}")
-            
-            return final_signal, avg_confidence
-            
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE MULTI-TIMEFRAME: {e}")
-            return "HOLD", 0.5
-
-    def market_regime_analysis(self, df):
-        """Analisa o regime de mercado"""
+                # Calcular indicadores
+                df_com_indicadores = self.calcular_indicadores(df_15m.copy())
+                
+                # Obter últimos valores
+                ultimo = df_com_indicadores.iloc[-1]
+                penultimo = df_com_indicadores.iloc[-2]
+                
+                # Análise de tendência
+                tendencia = self.analisar_tendencia(df_com_indicadores)
+                
+                # Gerar sinal
+                sinal = self.gerar_sinal(ultimo, penultimo, tendencia, par)
+                
+                if sinal:
+                    sinais.append(sinal)
+                    logger.info(f"🎯 SINAL GERADO: {par} - {sinal['direcao']} (Conf: {sinal['confianca']}%)")
+                
+            except Exception as e:
+                logger.error(f"❌ ERRO NA ANÁLISE {par}: {e}")
+                continue
+        
+        return sinais
+    
+    def analisar_tendencia(self, df):
+        """Analisar tendência do mercado"""
         try:
-            if len(df) < 20:
-                return "SIDEWAYS"
-                
-            closes = df['close'].values
-            volatility = np.std(np.diff(closes[-20:]) / closes[-21:-1])
+            # Médias móveis
+            ema_9 = df['ema_9'].iloc[-1]
+            ema_21 = df['ema_21'].iloc[-1]
+            ema_50 = df['ema_50'].iloc[-1]
             
-            # Tendência
-            trend = (closes[-1] / closes[-20] - 1) * 100
-            
-            if abs(trend) > 5 and volatility < 0.02:
-                return "TRENDING"
-            elif volatility > 0.03:
-                return "VOLATILE" 
+            # Tendência por EMAs
+            if ema_9 > ema_21 > ema_50:
+                return "ALTA"
+            elif ema_9 < ema_21 < ema_50:
+                return "BAIXA"
             else:
-                return "SIDEWAYS"
+                return "LATERAL"
                 
         except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE DE REGIME: {e}")
-            return "UNKNOWN"
-
-# Instância global
-ai_brain = AIBrainAdvanced()
+            logger.error(f"❌ ERRO NA ANÁLISE DE TENDÊNCIA: {e}")
+            return "NEUTRA"
+    
+    def gerar_sinal(self, ultimo, penultimo, tendencia, par):
+        """Gerar sinal de trading baseado na análise"""
+        try:
+            confianca = 50.0  # Base
+            
+            # Análise RSI
+            rsi = ultimo['rsi']
+            if not pd.isna(rsi):
+                if rsi < 30:
+                    confianca += 15
+                elif rsi > 70:
+                    confianca -= 15
+            
+            # Análise MACD
+            macd = ultimo['macd']
+            macd_signal = ultimo['macd_signal']
+            if not pd.isna(macd) and not pd.isna(macd_signal):
+                if macd > macd_signal and penultimo['macd'] <= penultimo['macd_signal']:
+                    confianca += 10
+                elif macd < macd_signal and penultimo['macd'] >= penultimo['macd_signal']:
+                    confianca -= 10
+            
+            # Análise Bollinger Bands
+            preco = ultimo['close']
+            bb_upper = ultimo['bb_upper']
+            bb_lower = ultimo['bb_lower']
+            
+            if not pd.isna(bb_upper) and not pd.isna(bb_lower):
+                if preco <= bb_lower:
+                    confianca += 10
+                elif preco >= bb_upper:
+                    confianca -= 10
+            
+            # Determinar direção baseada na tendência e confiança
+            if confianca >= 60:
+                direcao = "BUY" if tendencia in ["ALTA", "NEUTRA"] else "HOLD"
+            elif confianca <= 40:
+                direcao = "SELL" if tendencia in ["BAIXA", "NEUTRA"] else "HOLD"
+            else:
+                direcao = "HOLD"
+            
+            # Só retornar se não for HOLD
+            if direcao != "HOLD" and confianca >= 55:
+                return {
+                    'par': par,
+                    'direcao': direcao,
+                    'confianca': min(confianca, 95.0),
+                    'preco': preco,
+                    'timestamp': datetime.now().isoformat()
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ ERRO AO GERAR SINAL: {e}")
+            return None

@@ -1,47 +1,48 @@
-# shared_state.py - Estado global compartilhado
-import json
-import os
+import threading
 from datetime import datetime
 
 class SharedState:
-    def __init__(self):
-        self.state_file = 'bot_state.json'
+    _instance = None
+    _lock = threading.Lock()
     
-    def get_state(self):
-        """Obtém o estado atual do bot"""
-        try:
-            if os.path.exists(self.state_file):
-                with open(self.state_file, 'r') as f:
-                    return json.load(f)
-        except:
-            pass
-        
-        # Estado padrão
-        return {
-            'running': False,
-            'started_at': None,
-            'trades_today': 0,
-            'profit_today': 0.0,
-            'last_update': datetime.now().isoformat()
-        }
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(SharedState, cls).__new__(cls)
+                cls._instance._initialize()
+            return cls._instance
     
-    def set_state(self, running, trades=0, profit=0.0):
-        """Define o estado do bot"""
-        state = {
-            'running': running,
-            'started_at': datetime.now().isoformat() if running else None,
-            'trades_today': trades,
-            'profit_today': profit,
-            'last_update': datetime.now().isoformat()
+    def _initialize(self):
+        self.bot_status = "🔧 INICIANDO"
+        self.performance = {
+            'ciclos': 0,
+            'trades': 0,
+            'saldo': 0.0,
+            'lucro': 0.0,
+            'vitorias': 0,
+            'derrotas': 0
         }
-        
-        try:
-            with open(self.state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Erro ao salvar estado: {e}")
-            return False
+        self.conexao_exchange = False
+        self.modalidade = "REAL"
+        self.ultimos_sinais = []
+        self.ultima_atualizacao = datetime.now().strftime("%H:%M:%S")
+        self._lock = threading.RLock()
+    
+    def atualizar_status(self, status):
+        with self._lock:
+            self.bot_status = status
+            self.ultima_atualizacao = datetime.now().strftime("%H:%M:%S")
+    
+    def adicionar_sinal(self, sinal):
+        with self._lock:
+            self.ultimos_sinais.append(f"[{datetime.now().strftime('%H:%M:%S')}] {sinal}")
+            if len(self.ultimos_sinais) > 20:
+                self.ultimos_sinais.pop(0)
+    
+    def atualizar_performance(self, **kwargs):
+        with self._lock:
+            for key, value in kwargs.items():
+                if key in self.performance:
+                    self.performance[key] = value
 
-# Instância global
 shared_state = SharedState()
