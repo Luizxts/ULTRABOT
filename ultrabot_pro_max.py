@@ -1,9 +1,9 @@
-# ultrabot_pro_max.py - ROBÔ PRINCIPAL ULTRABOT PRO MAX
+# ultrabot_pro_max.py - ROBÔ PRINCIPAL CONTA REAL
 import time
 import logging
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import sys
 import os
 from config import BYBIT_CONFIG, BOT_CONFIG, SECURITY_CONFIG, LOG_CONFIG, validate_config
@@ -13,8 +13,7 @@ from risk_manager import risk_manager
 
 class UltraBotProMax:
     """
-    Robô de Trading Avançado ULTRABOT PRO MAX
-    Integra IA, Gerenciamento de Risco e Bybit API
+    Robô de Trading Avançado ULTRABOT PRO MAX - CONTA REAL
     """
     
     def __init__(self):
@@ -56,16 +55,10 @@ class UltraBotProMax:
     def setup_advanced_logging(self):
         """Configura sistema de logging avançado"""
         try:
-            if LOG_CONFIG['log_colors']:
-                formatter = logging.Formatter(
-                    '\033[94m[%(asctime)s]\033[0m \033[96m%(name)s\033[0m \033[92m%(levelname)s\033[0m %(message)s',
-                    datefmt='%H:%M:%S'
-                )
-            else:
-                formatter = logging.Formatter(
-                    '[%(asctime)s] %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S'
-                )
+            formatter = logging.Formatter(
+                '[%(asctime)s] %(name)s %(levelname)s %(message)s',
+                datefmt='%H:%M:%S'
+            )
             
             handler = logging.StreamHandler()
             handler.setFormatter(formatter)
@@ -75,49 +68,54 @@ class UltraBotProMax:
             self.logger.setLevel(getattr(logging, LOG_CONFIG['log_level']))
             self.logger.addHandler(handler)
             
-            # Log para arquivo se configurado
-            if LOG_CONFIG['log_to_file']:
-                file_handler = logging.FileHandler(LOG_CONFIG['log_filename'])
-                file_handler.setFormatter(formatter)
-                self.logger.addHandler(file_handler)
-            
         except Exception as e:
             print(f"❌ ERRO NO LOGGING: {e}")
 
     def initialize_system(self):
-        """Inicialização completa do sistema"""
+        """Inicialização completa do sistema CONTA REAL"""
         try:
-            self.logger.info("🚀 INICIALIZANDO ULTRABOT PRO MAX...")
+            self.logger.info("🚀 INICIALIZANDO ULTRABOT PRO MAX - CONTA REAL...")
             
-            # Testar conexão Bybit
+            # Verificação de segurança extra
+            self.safety_checks()
+            
+            # Testar conexão Bybit REAL
             balance_info = self.bybit.get_account_balance_detailed()
             if balance_info:
                 self.balance = balance_info['total']['USDT']
-                self.logger.info(f"💰 SALDO INICIAL: ${self.balance:.2f}")
+                self.logger.info(f"💰 SALDO REAL: ${self.balance:.2f}")
             else:
-                self.logger.error("❌ FALHA AO OBTER SALDO")
-                raise ConnectionError("Não foi possível conectar à Bybit")
-            
-            # Verificar saúde dos módulos
-            self.logger.info("🔍 VERIFICANDO MÓDULOS...")
-            self.logger.info(f"✅ BYBIT: {'CONECTADO' if self.bybit.exchange else 'ERRO'}")
-            self.logger.info(f"✅ IA: {'ATIVA' if self.ai.model_trained else 'TREINAMENTO INICIAL'}")
-            self.logger.info(f"✅ RISK MANAGER: {'ATIVO' if self.risk else 'ERRO'}")
+                self.logger.error("❌ FALHA AO OBTER SALDO REAL")
+                raise ConnectionError("Não foi possível conectar à Bybit REAL")
             
             # Status final
-            self.logger.info("🎯 ULTRABOT PRO MAX INICIALIZADO COM SUCESSO!")
-            self.logger.info(f"📊 MODO: {self.mode}")
+            self.logger.info("🎯 ULTRABOT PRO MAX INICIALIZADO - CONTA REAL!")
             self.logger.info(f"⏰ INICIADO EM: {self.start_time.strftime('%d/%m/%Y %H:%M:%S')}")
+            self.logger.info("🛡️  MODO CONSERVADOR ATIVO - RISCO 1% POR TRADE")
             
         except Exception as e:
             self.logger.error(f"❌ ERRO NA INICIALIZAÇÃO: {e}")
             raise
 
+    def safety_checks(self):
+        """Verificações de segurança para conta real"""
+        self.logger.info("🔒 EXECUTANDO VERIFICAÇÕES DE SEGURANÇA...")
+        
+        # Verificar se não está em testnet
+        if self.config['testnet']:
+            self.logger.error("🚨 PERIGO: Configurado para TESTNET mas usando CONTA REAL!")
+            raise ValueError("Modo testnet ativo com conta real")
+            
+        # Verificar credenciais
+        if 'SUA_API' in self.config['api_key'] or 'SEU_SECRET' in self.config['api_secret']:
+            self.logger.error("🚨 ERRO: Credenciais não configuradas!")
+            raise ValueError("Configure BYBIT_API_KEY_REAL e BYBIT_API_SECRET_REAL no Railway")
+            
+        self.logger.info("✅ VERIFICAÇÕES DE SEGURANÇA: OK")
+
     def get_market_analysis_advanced(self):
         """Executa análise avançada de mercado"""
         try:
-            self.logger.info("🔍 INICIANDO ANÁLISE DE MERCADO...")
-            
             # Obter dados multi-timeframe
             multi_tf_data = self.bybit.get_multiple_timeframes_data()
             if not multi_tf_data:
@@ -125,28 +123,20 @@ class UltraBotProMax:
                 return "HOLD", 0.5, "UNKNOWN"
             
             # Análise multi-timeframe com IA
-            if self.bot_config['multi_timeframe']:
-                signal, confidence = self.ai.multi_timeframe_analysis(multi_tf_data)
-            else:
-                # Análise apenas no timeframe principal
-                main_tf_data = multi_tf_data.get('5m')
-                if main_tf_data is not None:
-                    signal, confidence = self.ai.analyze_market_sentiment(main_tf_data)
-                else:
-                    signal, confidence = "HOLD", 0.5
+            signal, confidence = self.ai.multi_timeframe_analysis(multi_tf_data)
             
             # Verificar saúde do mercado
             market_health = self.bybit.get_market_health()
             
-            self.logger.info(f"🎯 ANÁLISE CONCLUÍDA: {signal} | Conf: {confidence:.1%} | Saúde: {market_health}")
+            self.logger.info(f"🎯 ANÁLISE: {signal} | Conf: {confidence:.1%} | Saúde: {market_health}")
             return signal, confidence, market_health
             
         except Exception as e:
-            self.logger.error(f"❌ ERRO NA ANÁLISE DE MERCADO: {e}")
+            self.logger.error(f"❌ ERRO NA ANÁLISE: {e}")
             return "HOLD", 0.5, "UNKNOWN"
 
     def execute_advanced_trade(self, signal, confidence, market_health):
-        """Executa trade avançado com gerenciamento de risco"""
+        """Executa trade avançado com gerenciamento de risco CONTA REAL"""
         try:
             # Obter condições de mercado para risk manager
             ticker = self.bybit.get_advanced_ticker()
@@ -156,11 +146,11 @@ class UltraBotProMax:
                 'volume': ticker['volume'] if ticker else 0
             }
             
-            # Calcular tamanho da posição
+            # Calcular tamanho da posição CONSERVADOR
             position_size = self.bybit.calculate_position_size(
                 balance=self.balance,
-                risk_per_trade=self.config['risk_per_trade'],
-                stop_loss_pct=0.02
+                risk_per_trade=self.config['risk_per_trade'],  # 1%
+                stop_loss_pct=0.02  # Stop-loss de 2%
             )
             
             # Verificar com risk manager
@@ -175,20 +165,20 @@ class UltraBotProMax:
                 self.logger.warning(f"🚫 TRADE BLOQUEADO: {risk_state['reason']}")
                 return False
             
-            # Preparar ordem
+            # Preparar ordem CONTA REAL
             symbol = f"{self.config['symbol'].replace('USDT', '')}/USDT:USDT"
             current_price = ticker['last']
             
-            # Calcular stop loss e take profit
+            # Calcular stop loss e take profit CONSERVADORES
             if signal == "BUY":
                 stop_loss = current_price * 0.98  # 2% stop loss
-                take_profit = current_price * 1.04  # 4% take profit
+                take_profit = current_price * 1.03  # 3% take profit
             else:  # SELL
                 stop_loss = current_price * 1.02  # 2% stop loss
-                take_profit = current_price * 0.96  # 4% take profit
+                take_profit = current_price * 0.97  # 3% take profit
             
-            # Executar ordem
-            self.logger.info(f"🎯 EXECUTANDO ORDEM: {signal} {position_size:.6f} {symbol}")
+            # Executar ordem REAL
+            self.logger.info(f"🎯 EXECUTANDO ORDEM REAL: {signal} {position_size:.6f} {symbol}")
             
             order = self.bybit.create_advanced_order(
                 symbol=symbol,
@@ -220,14 +210,15 @@ class UltraBotProMax:
                 # Atualizar métricas
                 self.update_trade_metrics(signal)
                 
-                self.logger.info(f"✅ TRADE EXECUTADO COM SUCESSO: {signal} | Size: {position_size:.6f}")
+                self.logger.info(f"✅ TRADE REAL EXECUTADO: {signal} | Size: {position_size:.6f}")
+                self.logger.info(f"💰 Stop Loss: ${stop_loss:.2f} | Take Profit: ${take_profit:.2f}")
                 return True
             else:
-                self.logger.error("❌ FALHA NA EXECUÇÃO DA ORDEM")
+                self.logger.error("❌ FALHA NA EXECUÇÃO DA ORDEM REAL")
                 return False
                 
         except Exception as e:
-            self.logger.error(f"❌ ERRO NA EXECUÇÃO DO TRADE: {e}")
+            self.logger.error(f"❌ ERRO NA EXECUÇÃO DO TRADE REAL: {e}")
             return False
 
     def update_trade_metrics(self, signal):
@@ -239,51 +230,56 @@ class UltraBotProMax:
             self.consecutive_losses += 1
             self.consecutive_wins = 0
         
-        # Atualizar saldo
+        # Atualizar saldo REAL
         balance_info = self.bybit.get_account_balance_detailed()
         if balance_info:
             new_balance = balance_info['total']['USDT']
-            self.total_profit = new_balance - self.config['initial_balance']
+            profit_loss = new_balance - self.balance
+            self.total_profit += profit_loss
             self.balance = new_balance
+            
+            if profit_loss > 0:
+                self.logger.info(f"📈 LUCRO: ${profit_loss:.2f}")
+            elif profit_loss < 0:
+                self.logger.warning(f"📉 PERDA: ${abs(profit_loss):.2f}")
 
     def run_trading_cycle(self):
-        """Executa um ciclo completo de trading"""
+        """Executa um ciclo completo de trading CONTA REAL"""
         try:
             self.cycle_count += 1
-            self.logger.info(f"🔄 INICIANDO CICLO #{self.cycle_count}")
+            self.logger.info(f"🔄 CICLO #{self.cycle_count} - CONTA REAL")
             
             # 1. Análise de Mercado
             signal, confidence, market_health = self.get_market_analysis_advanced()
             
-            # 2. Verificar se deve executar trade
+            # 2. Verificar se deve executar trade (critérios mais rigorosos)
             should_trade = (
                 signal != "HOLD" and 
                 confidence >= self.bot_config['min_confidence'] and
-                market_health == "HEALTHY"
+                market_health == "HEALTHY" and
+                self.cycle_count > 2  # Esperar alguns ciclos antes do primeiro trade
             )
             
             if should_trade:
-                self.logger.info(f"🎯 CONDIÇÕES ATENDIDAS - EXECUTANDO TRADE: {signal}")
+                self.logger.info(f"🎯 CONDIÇÕES ATENDIDAS - EXECUTANDO TRADE REAL: {signal}")
                 trade_executed = self.execute_advanced_trade(signal, confidence, market_health)
                 
                 if trade_executed:
-                    self.logger.info("✅ TRADE EXECUTADO COM SUCESSO")
+                    self.logger.info("✅ TRADE REAL EXECUTADO COM SUCESSO")
                 else:
-                    self.logger.warning("⚠️ TRADE NÃO EXECUTADO")
+                    self.logger.warning("⚠️ TRADE REAL NÃO EXECUTADO")
             else:
-                self.logger.info("⏭️  NENHUMA OPORTUNIDADE IDENTIFICADA")
                 if signal == "HOLD":
-                    self.logger.info("   ↳ Sinal: HOLD")
-                if confidence < self.bot_config['min_confidence']:
-                    self.logger.info(f"   ↳ Confiança insuficiente: {confidence:.1%} < {self.bot_config['min_confidence']:.1%}")
-                if market_health != "HEALTHY":
-                    self.logger.info(f"   ↳ Saúde do mercado: {market_health}")
+                    self.logger.info("⏭️  Sinal: HOLD - Aguardando oportunidade")
+                elif confidence < self.bot_config['min_confidence']:
+                    self.logger.info(f"⏭️  Confiança insuficiente: {confidence:.1%} < {self.bot_config['min_confidence']:.1%}")
+                elif market_health != "HEALTHY":
+                    self.logger.info(f"⏭️  Saúde do mercado: {market_health}")
+                elif self.cycle_count <= 2:
+                    self.logger.info("⏭️  Aquecimento inicial - Aguardando estabilização")
             
             # 3. Atualizar status e métricas
             self.update_system_status()
-            
-            # 4. Log de performance
-            self.log_performance_metrics()
             
             self.logger.info(f"✅ CICLO #{self.cycle_count} CONCLUÍDO")
             
@@ -291,23 +287,19 @@ class UltraBotProMax:
             self.logger.error(f"❌ ERRO NO CICLO DE TRADING: {e}")
 
     def update_system_status(self):
-        """Atualiza e exibe status do sistema"""
+        """Atualiza e exibe status do sistema CONTA REAL"""
         try:
             # Obter métricas atualizadas
             risk_metrics = self.risk.get_risk_metrics()
-            balance_info = self.bybit.get_account_balance_detailed()
-            
-            if balance_info:
-                self.balance = balance_info['total']['USDT']
             
             # Exibir status
             status_msg = f"""
-🤖 ULTRABOT PRO MAX - STATUS DO SISTEMA
+🤖 ULTRABOT PRO MAX - CONTA REAL
 
-📊 PERFORMANCE:
+📊 PERFORMANCE REAL:
    ► Ciclos: {self.cycle_count}
-   ► Saldo: ${self.balance:.2f}
-   ► Lucro Total: ${self.total_profit:.2f}
+   ► Saldo REAL: ${self.balance:.2f}
+   ► Lucro/Prejuízo REAL: ${self.total_profit:.2f}
    ► Vitórias Consecutivas: {self.consecutive_wins}
    ► Derrotas Consecutivas: {self.consecutive_losses}
 
@@ -315,50 +307,22 @@ class UltraBotProMax:
    ► Trades Hoje: {risk_metrics.get('daily_trades', 0)}
    ► P/L Diário: ${risk_metrics.get('daily_pl', 0):.2f}
    ► Win Rate: {risk_metrics.get('win_rate', 0):.1%}
-   ► Trading Permitido: {risk_metrics.get('trading_allowed', False)}
 
 🛡️  RISCO:
    ► Drawdown: {risk_metrics.get('daily_drawdown', 0):.2%}
    ► Streak Atual: {risk_metrics.get('current_streak', 0)}
-   ► Status: {risk_metrics.get('risk_reason', 'UNKNOWN')}
+   ► Trading Permitido: {risk_metrics.get('trading_allowed', False)}
 
 ⏰ PRÓXIMA ANÁLISE: {self.bot_config['update_interval']}s
-🕒 ÚLTIMA ATUALIZAÇÃO: {datetime.now().strftime('%H:%M:%S')}
+🕒 {datetime.now().strftime('%H:%M:%S')}
             """
             print(status_msg)
             
         except Exception as e:
             self.logger.error(f"❌ ERRO AO ATUALIZAR STATUS: {e}")
 
-    def log_performance_metrics(self):
-        """Registra métricas de performance"""
-        try:
-            risk_metrics = self.risk.get_risk_metrics()
-            
-            performance_data = {
-                'timestamp': datetime.now(),
-                'cycle_count': self.cycle_count,
-                'balance': self.balance,
-                'total_profit': self.total_profit,
-                'consecutive_wins': self.consecutive_wins,
-                'consecutive_losses': self.consecutive_losses,
-                'daily_trades': risk_metrics.get('daily_trades', 0),
-                'daily_pl': risk_metrics.get('daily_pl', 0),
-                'win_rate': risk_metrics.get('win_rate', 0),
-                'drawdown': risk_metrics.get('daily_drawdown', 0),
-            }
-            
-            self.performance_history.append(performance_data)
-            
-            # Manter apenas últimas 1000 entradas
-            if len(self.performance_history) > 1000:
-                self.performance_history = self.performance_history[-1000:]
-                
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NO LOG DE PERFORMANCE: {e}")
-
     def check_emergency_conditions(self):
-        """Verifica condições de parada de emergência"""
+        """Verifica condições de parada de emergência CONTA REAL"""
         try:
             risk_metrics = self.risk.get_risk_metrics()
             
@@ -370,14 +334,14 @@ class UltraBotProMax:
                 self.consecutive_losses >= self.security_config['max_consecutive_losses'],
                 
                 # Perda diária excessiva
-                risk_metrics.get('daily_pl', 0) < -self.balance * 0.08,
+                risk_metrics.get('daily_pl', 0) < -self.balance * 0.03,  # 3% de perda diária
                 
-                # Muitos trades em pouco tempo (overtrading)
-                risk_metrics.get('daily_trades', 0) > 50,
+                # Muitos trades em pouco tempo
+                risk_metrics.get('daily_trades', 0) > 10,  # Máximo 10 trades/dia
             ]
             
             if any(emergency_conditions):
-                self.logger.error("🚨 CONDIÇÕES DE EMERGÊNCIA DETECTADAS!")
+                self.logger.error("🚨 CONDIÇÕES DE EMERGÊNCIA DETECTADAS - CONTA REAL!")
                 return True
                 
             return False
@@ -387,17 +351,18 @@ class UltraBotProMax:
             return False
 
     def start(self):
-        """Inicia o robô de trading"""
+        """Inicia o robô de trading CONTA REAL"""
         try:
             self.running = True
-            self.logger.info("🚀 INICIANDO ULTRABOT PRO MAX...")
-            self.logger.info("🎯 MODO: BYBIT TESTNET AVANÇADO")
-            self.logger.info("🧠 IA + RISK MANAGEMENT ATIVOS")
-            self.logger.info("📊 MONITORAMENTO EM TEMPO REAL")
+            self.logger.info("🚀 INICIANDO ULTRABOT PRO MAX - CONTA REAL...")
+            self.logger.info("🎯 MODO: BYBIT MAINNET - DINHEIRO REAL")
+            self.logger.info("🛡️  RISCO: 1% POR TRADE - MODO CONSERVADOR")
+            self.logger.info("📊 MONITORAMENTO EM TEMPO REAL ATIVO")
             
             print("\n" + "="*60)
-            print("🤖 ULTRABOT PRO MAX - TRADING AUTÔNOMO INICIADO")
-            print("🎯 Pressione Ctrl+C para parar o bot")
+            print("🤖 ULTRABOT PRO MAX - CONTA REAL INICIADO")
+            print("💰 OPERANDO COM DINHEIRO REAL - EXTREMO CUIDADO")
+            print("🎯 Pressione Ctrl+C para parar imediatamente")
             print("="*60 + "\n")
             
             while self.running:
@@ -407,16 +372,16 @@ class UltraBotProMax:
                     
                     # Verificar condições de emergência
                     if self.check_emergency_conditions():
-                        self.logger.error("🚨 PARADA DE EMERGÊNCIA ATIVADA!")
+                        self.logger.error("🚨 PARADA DE EMERGÊNCIA ATIVADA - CONTA REAL!")
                         self.stop()
                         break
                     
                     # Intervalo entre ciclos
-                    self.logger.info(f"⏳ AGUARDANDO {self.bot_config['update_interval']}s PARA PRÓXIMO CICLO...")
+                    self.logger.info(f"⏳ AGUARDANDO {self.bot_config['update_interval']}s...")
                     time.sleep(self.bot_config['update_interval'])
                     
                 except KeyboardInterrupt:
-                    self.logger.info("⏹️  INTERRUPÇÃO SOLICITADA PELO USUÁRIO")
+                    self.logger.info("⏹️  INTERRUPÇÃO SOLICITADA PELO USUÁRIO - CONTA REAL")
                     break
                 except Exception as e:
                     self.logger.error(f"❌ ERRO NO LOOP PRINCIPAL: {e}")
@@ -429,7 +394,7 @@ class UltraBotProMax:
             self.stop()
 
     def stop(self):
-        """Para o robô de trading"""
+        """Para o robô de trading CONTA REAL"""
         self.running = False
         
         # Estatísticas finais
@@ -437,74 +402,44 @@ class UltraBotProMax:
         risk_metrics = self.risk.get_risk_metrics()
         
         final_report = f"""
-🛑 ULTRABOT PRO MAX - RELATÓRIO FINAL
+🛑 ULTRABOT PRO MAX - RELATÓRIO FINAL CONTA REAL
 
-📈 ESTATÍSTICAS:
+📈 ESTATÍSTICAS REAIS:
    ► Tempo de Execução: {runtime}
    ► Total de Ciclos: {self.cycle_count}
-   ► Saldo Final: ${self.balance:.2f}
-   ► Lucro/Prejuízo: ${self.total_profit:.2f}
+   ► Saldo Final REAL: ${self.balance:.2f}
+   ► Lucro/Prejuízo REAL: ${self.total_profit:.2f}
    ► Trades Realizados: {risk_metrics.get('total_trades', 0)}
    ► Win Rate: {risk_metrics.get('win_rate', 0):.1%}
 
-🎯 PERFORMANCE:
+🎯 PERFORMANCE REAL:
    ► Maior Ganho: ${risk_metrics.get('largest_win', 0):.2f}
    ► Maior Perda: ${risk_metrics.get('largest_loss', 0):.2f}
    ► Streak Máximo (Wins): {risk_metrics.get('max_consecutive_wins', 0)}
    ► Streak Máximo (Losses): {risk_metrics.get('max_consecutive_losses', 0)}
 
 ⏰ ENCERRADO EM: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+
+💡 RECOMENDAÇÃO:
+   ► Analisar performance antes de reiniciar
+   ► Verificar logs para possíveis melhorias
+   ► Considerar ajustes na estratégia se necessário
         """
         
         print(final_report)
-        self.logger.info("🛑 ULTRABOT PRO MAX PARADO")
-
-    def get_performance_report(self):
-        """Gera relatório de performance detalhado"""
-        try:
-            if not self.performance_history:
-                return "Nenhum dado de performance disponível"
-            
-            df = pd.DataFrame(self.performance_history)
-            
-            report = f"""
-📊 RELATÓRIO DE PERFORMANCE DETALHADO
-
-📈 ESTATÍSTICAS GERAIS:
-   ► Total de Ciclos: {len(df)}
-   ► Saldo Inicial: ${self.config['initial_balance']:.2f}
-   ► Saldo Final: ${self.balance:.2f}
-   ► Lucro Total: ${self.total_profit:.2f}
-   ► ROI: {(self.total_profit / self.config['initial_balance'] * 100):.2f}%
-
-📋 DISTRIBUIÇÃO:
-   ► Maior Saldo: ${df['balance'].max():.2f}
-   ► Menor Saldo: ${df['balance'].min():.2f}
-   ► Média de Saldo: ${df['balance'].mean():.2f}
-   
-🎯 EFICIÊNCIA:
-   ► Ciclos com Lucro: {len(df[df['total_profit'] > 0])}
-   ► Ciclos com Prejuízo: {len(df[df['total_profit'] < 0])}
-   ► Melhor Streak: {df['consecutive_wins'].max()}
-   ► Pior Streak: {df['consecutive_losses'].max()}
-            """
-            
-            return report
-            
-        except Exception as e:
-            self.logger.error(f"❌ ERRO NO RELATÓRIO: {e}")
-            return f"Erro ao gerar relatório: {e}"
+        self.logger.info("🛑 ULTRABOT PRO MAX PARADO - CONTA REAL")
 
 def main():
-    """Função principal"""
+    """Função principal CONTA REAL"""
     print("""
 ╔══════════════════════════════════════════════════════════════╗
-║                   ULTRABOT PRO MAX v3.0                      ║
+║                   ULTRABOT PRO MAX v1.0                      ║
 ║                                                              ║
-║          SISTEMA AVANÇADO DE TRADING AUTÔNOMO                ║
-║          IA + RISK MANAGEMENT + BYBIT INTEGRATION            ║
+║          CONTA REAL - BYBIT MAINNET                          ║
+║          OPERANDO COM DINHEIRO REAL                          ║
+║          MODO CONSERVADOR - RISCO 1%                         ║
 ║                                                              ║
-║                  [APENAS PARA TESTNET]                       ║
+║                  [EXTREMO CUIDADO]                           ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
@@ -514,14 +449,14 @@ def main():
         bot.start()
         
     except KeyboardInterrupt:
-        print("\n⏹️  Execução interrompida pelo usuário")
+        print("\n⏹️  Execução interrompida pelo usuário - CONTA REAL")
     except Exception as e:
         print(f"❌ ERRO CRÍTICO: {e}")
         print("\n🔧 SOLUÇÃO DE PROBLEMAS:")
-        print("1. Verifique suas credenciais Bybit no config.py")
-        print("2. Certifique-se de estar usando a TESTNET")
-        print("3. Verifique sua conexão com a internet")
-        print("4. Execute: pip install -r requirements.txt")
+        print("1. Verifique BYBIT_API_KEY_REAL e BYBIT_API_SECRET_REAL no Railway")
+        print("2. Confirme que as permissões da API estão corretas")
+        print("3. Verifique se há saldo na conta Bybit")
+        print("4. Confirme que não está em modo testnet")
 
 if __name__ == "__main__":
     main()
