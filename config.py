@@ -45,3 +45,34 @@ LOG_CONFIG = {
     "log_to_file": False,       # No Railway, usar logs da plataforma
     "log_colors": False,
 }
+# config.py - ADICIONAR ESTA FUNÇÃO NO FINAL
+
+def validate_config():
+    """Valida se as configurações estão corretas"""
+    required_fields = ["api_key", "api_secret"]
+    
+    for field in required_fields:
+        if BYBIT_CONFIG[field].startswith("SUA_") or BYBIT_CONFIG[field].startswith("SEU_"):
+            raise ValueError(f"❌ CONFIGURE O CAMPO: {field} - Configure as variáveis no Railway")
+    
+    # Validar valores de risco
+    if BYBIT_CONFIG["risk_per_trade"] > 0.05:
+        raise ValueError("❌ RISCO POR TRADE MUITO ALTO! Máximo recomendado: 0.05 (5%)")
+    
+    if SECURITY_CONFIG["max_drawdown"] > 0.20:
+        raise ValueError("❌ DRAWDOWN MÁXIMO MUITO ALTO! Máximo recomendado: 0.20 (20%)")
+    
+    print("✅ CONFIGURAÇÃO VALIDADA COM SUCESSO!")
+    print(f"🤖 BOT: {BOT_CONFIG['bot_name']} v{BOT_CONFIG['version']}")
+    print(f"🌐 MODO: {BOT_CONFIG['mode']}")
+    print(f"💰 SALDO INICIAL: ${BYBIT_CONFIG['initial_balance']:.2f}")
+    print(f"🎯 RISCO POR TRADE: {BYBIT_CONFIG['risk_per_trade']*100}%")
+    
+    return True
+
+# Testa a configuração quando o arquivo é executado
+if __name__ == "__main__":
+    try:
+        validate_config()
+    except ValueError as e:
+        print(f"❌ ERRO NA CONFIGURAÇÃO: {e}")
