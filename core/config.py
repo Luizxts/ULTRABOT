@@ -21,12 +21,12 @@ class TavaresConfig:
         ]
         
         # ⚡ CONFIGURAÇÕES DE TRADING REAL
-        self.INTERVALO_ANALISE = 60  # segundos
-        self.RISK_PER_TRADE = 0.01   # 1% por trade
-        self.VALOR_POR_TRADE = 50    # $50 por operação
-        self.STOP_LOSS = 0.015       # 1.5%
-        self.TAKE_PROFIT = 0.03      # 3%
-        self.LEVERAGE = 3            # Alavancagem conservadora
-        self.CONFIANCA_MINIMA = 65   # 65% confiança mínima
+        self.INTERVALO_ANALISE = 60
+        self.RISK_PER_TRADE = 0.01
+        self.VALOR_POR_TRADE = 50
+        self.STOP_LOSS = 0.015
+        self.TAKE_PROFIT = 0.03
+        self.LEVERAGE = 3
+        self.CONFIANCA_MINIMA = 65
 
 config = TavaresConfig()
