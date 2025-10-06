@@ -16,7 +16,7 @@ class BybitManager:
             'sandbox': config.BYBIT_TESTNET,
             'enableRateLimit': True,
             'options': {
-                'defaultType': 'spot',  # Ou 'future' para futuros
+                'defaultType': 'spot',
             }
         })
         
@@ -28,7 +28,12 @@ class BybitManager:
         """Verificar conexão com Bybit"""
         try:
             balance = self.exchange.fetch_balance()
-            logger.info(f"✅ Conectado à Bybit - Saldo: {balance['total'].get('USDT', 0)} USDT")
+            usdt_balance = balance['total'].get('USDT', 0)
+            logger.info(f"✅ Conectado à Bybit - Saldo: {usdt_balance} USDT")
+            
+            if usdt_balance < config.VALOR_POR_TRADE:
+                logger.warning(f"⚠️ Saldo insuficiente: {usdt_balance} USDT < {config.VALOR_POR_TRADE} USDT")
+            
             return True
         except Exception as e:
             logger.error(f"❌ Erro ao conectar com Bybit: {e}")
@@ -40,6 +45,10 @@ class BybitManager:
             # Obter preço atual
             ticker = self.exchange.fetch_ticker(par)
             preco_atual = ticker['last']
+            
+            if preco_atual == 0:
+                logger.error(f"❌ Preço zero para {par}")
+                return None
             
             # Calcular quantidade
             quantidade = valor_usdt / preco_atual
@@ -54,10 +63,17 @@ class BybitManager:
                 Decimal(str(precision)), rounding=ROUND_DOWN
             ))
             
+            # Verificar quantidade mínima
+            min_amount = symbol_info['limits']['amount']['min']
+            if quantidade < min_amount:
+                logger.warning(f"⚠️ Quantidade muito pequena: {quantidade} < {min_amount}")
+                quantidade = min_amount
+            
+            logger.info(f"📊 {par}: Preço={preco_atual}, Qtd={quantidade}")
             return quantidade
             
         except Exception as e:
-            logger.error(f"❌ Erro ao calcular quantidade: {e}")
+            logger.error(f"❌ Erro ao calcular quantidade para {par}: {e}")
             return None
     
     async def executar_ordem(self, par, direcao, valor_usdt):
@@ -66,6 +82,7 @@ class BybitManager:
             # Calcular quantidade
             quantidade = self._calcular_quantidade(par, valor_usdt)
             if not quantidade:
+                logger.error(f"❌ Não foi possível calcular quantidade para {par}")
                 return None
             
             logger.info(f"💰 EXECUTANDO ORDEM REAL: {par} {direcao} {quantidade}")
@@ -82,22 +99,22 @@ class BybitManager:
                 'id': ordem['id'],
                 'symbol': ordem['symbol'],
                 'side': ordem['side'],
-                'price': ordem['price'],
-                'amount': ordem['amount'],
-                'cost': ordem['cost'],
+                'price': float(ordem['price']),
+                'amount': float(ordem['amount']),
+                'cost': float(ordem['cost']),
                 'timestamp': ordem['timestamp'],
                 'status': ordem['status']
             }
             
         except Exception as e:
-            logger.error(f"❌ ERRO EXECUTANDO ORDEM REAL: {e}")
+            logger.error(f"❌ ERRO EXECUTANDO ORDEM REAL {par}: {e}")
             return None
     
     def obter_saldo(self):
         """Obter saldo atual"""
         try:
             balance = self.exchange.fetch_balance()
-            return balance['total'].get('USDT', 0)
+            return float(balance['total'].get('USDT', 0))
         except Exception as e:
             logger.error(f"❌ Erro ao obter saldo: {e}")
             return 0
@@ -106,16 +123,16 @@ class BybitManager:
         """Obter preço atual do par"""
         try:
             ticker = self.exchange.fetch_ticker(par)
-            return ticker['last']
+            return float(ticker['last'])
         except Exception as e:
-            logger.error(f"❌ Erro ao obter preço: {e}")
+            logger.error(f"❌ Erro ao obter preço {par}: {e}")
             return None
     
-    def obter_ordens_abertas(self):
-        """Obter ordens abertas"""
+    def obter_dados_mercado(self, par, timeframe='15m', limit=100):
+        """Obter dados OHLCV do mercado"""
         try:
-            ordens = self.exchange.fetch_open_orders()
-            return ordens
+            ohlcv = self.exchange.fetch_ohlcv(par, timeframe, limit=limit)
+            return ohlcv
         except Exception as e:
-            logger.error(f"❌ Erro ao obter ordens abertas: {e}")
-            return []
+            logger.error(f"❌ Erro ao obter dados {par}: {e}")
+            return None

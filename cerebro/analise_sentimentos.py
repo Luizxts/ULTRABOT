@@ -3,28 +3,24 @@ from textblob import TextBlob
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import logging
 from datetime import datetime
-import pandas as pd
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger('AnaliseSentimentos')
 
 class AnalisadorSentimentos:
-    """Analisador de sentimentos SÍNCRONO para TAVARES"""
+    """Analisador de sentimentos para TAVARES"""
     
     def __init__(self):
         self.analyzer = SentimentIntensityAnalyzer()
         self.sentiment_history = []
-        
-        logger.info("📰 ANALISADOR DE SENTIMENTOS SÍNCRONO INICIALIZADO")
+        logger.info("📰 ANALISADOR DE SENTIMENTOS INICIALIZADO")
     
     def analisar_sentimento_mercado(self):
-        """Analisar sentimento geral do mercado - VERSÃO SÍNCRONA SIMPLES"""
+        """Analisar sentimento geral do mercado"""
         try:
-            # Coletar notícias de forma síncrona
             noticias = self._coletar_noticias_sincrono()
             
             if not noticias:
-                logger.info("📰 Usando análise de sentimento simulada")
                 return self._analise_simulada()
             
             sentimentos = []
@@ -71,11 +67,13 @@ class AnalisadorSentimentos:
     def _coletar_noticias_sincrono(self):
         """Coletar notícias de forma síncrona"""
         try:
-            # Tentar coletar de uma fonte RSS simples
-            response = requests.get('https://cointelegraph.com/rss', timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            response = requests.get('https://cointelegraph.com/rss', headers=headers, timeout=10)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, 'xml')
-                items = soup.find_all('item')[:2]  # 2 notícias
+                items = soup.find_all('item')[:3]
                 
                 noticias = []
                 for item in items:
@@ -93,19 +91,18 @@ class AnalisadorSentimentos:
         return []
     
     def _analise_simulada(self):
-        """Análise simulada baseada no horário e volatilidade do mercado"""
+        """Análise simulada baseada no horário"""
         from datetime import datetime
         import random
         
         hora = datetime.now().hour
         
         # Simular padrões de mercado baseados no horário
-        if 9 <= hora <= 17:  # Horário comercial
-            score = random.uniform(-0.05, 0.1)
-        else:  # Fora do horário comercial
-            score = random.uniform(-0.1, 0.05)
+        if 9 <= hora <= 17:
+            score = random.uniform(-0.02, 0.08)
+        else:
+            score = random.uniform(-0.05, 0.05)
         
-        # Determinar sentimento baseado no score simulado
         if score >= 0.05:
             sentimento_geral = "POSITIVO"
         elif score <= -0.05:
@@ -125,7 +122,7 @@ class AnalisadorSentimentos:
     def analisar_sentimento_texto(self, texto):
         """Analisar sentimento do texto"""
         try:
-            texto = texto[:500]  # Limitar tamanho
+            texto = texto[:500]
             
             # Análise com VADER
             vader_score = self.analyzer.polarity_scores(texto)
@@ -165,16 +162,22 @@ class AnalisadorSentimentos:
         """Análise de sentimento para criptomoedas"""
         texto_lower = texto.lower()
         score = 0
+        keyword_count = 0
         
-        positive_words = ['bullish', 'moon', 'rally', 'surge', 'green', 'growth', 'adoption']
-        negative_words = ['bearish', 'crash', 'dump', 'red', 'fud', 'regulation', 'ban']
+        positive_words = ['bullish', 'moon', 'rally', 'surge', 'green', 'growth', 'adoption', 'breakout', 'profit']
+        negative_words = ['bearish', 'crash', 'dump', 'red', 'fud', 'regulation', 'ban', 'warning', 'loss']
         
         for word in positive_words:
             if word in texto_lower:
                 score += 0.1
+                keyword_count += 1
         
         for word in negative_words:
             if word in texto_lower:
                 score -= 0.1
+                keyword_count += 1
+        
+        if keyword_count > 0:
+            score = score / keyword_count
         
         return max(min(score, 1), -1)
