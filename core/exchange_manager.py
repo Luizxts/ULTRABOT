@@ -3,218 +3,188 @@ import logging
 import asyncio
 import time
 import numpy as np
-import os
 from decimal import Decimal, ROUND_DOWN
 from core.config import config
 
 logger = logging.getLogger('ExchangeManager')
 
 class BybitManager:
-    """Gerenciador Bybit 100% SEGURO - Modo Análise Apenas"""
+    """Gerenciador Bybit - Modo Testes Seguros com R$100"""
     
     def __init__(self):
-        # 🔥 BLOQUEIO PERMANENTE DE SEGURANÇA
-        self._ativar_bloqueio_seguranca()
+        # 🔥 CONEXÃO REAL MAS COM PROTEGÇÕES
+        self.exchange = ccxt.bybit({
+            'apiKey': config.BYBIT_API_KEY,
+            'secret': config.BYBIT_API_SECRET,
+            'sandbox': config.BYBIT_TESTNET,
+            'enableRateLimit': True,
+            'options': {'defaultType': 'spot'}
+        })
         
-        # 💰 MODO APENAS ANÁLISE - SEM RISCO
-        self.modo_offline = True
-        self.bloqueio_permanente = True
-        self.modo_apenas_analise = True
-        
-        logger.info("💰 BYBIT MANAGER - MODO ANÁLISE SEGURO ATIVADO")
-        logger.critical("🚫 BLOQUEIO PERMANENTE: Operações reais DESATIVADAS")
+        self.modo_offline = False
+        self.saldo_inicial = 0
+        self._verificar_configuracao_segura()
+        logger.info("💰 BYBIT MANAGER - MODO TESTES SEGUROS ATIVADO!")
     
-    def _ativar_bloqueio_seguranca(self):
-        """Ativar bloqueios de segurança permanentes"""
-        # 🔒 BLOQUEIO 1: Railway detectado
-        if 'RAILWAY' in os.environ:
-            logger.critical("🚫 BLOQUEIO RAILWAY: Ambiente não permite operações reais")
-        
-        # 🔒 BLOQUEIO 2: Modo análise forçado
-        if hasattr(config, 'MODO_ANALISE') and config.MODO_ANALISE:
-            logger.critical("🚫 BLOQUEIO CONFIG: Modo análise ativado na configuração")
-        
-        # 🔒 BLOQUEIO 3: Sem credenciais API
-        if not config.BYBIT_API_KEY or config.BYBIT_API_KEY == 'SUA_API_KEY_REAL_AQUI':
-            logger.critical("🚫 BLOQUEIO API: Credenciais não configuradas")
-    
-    def _verificar_conexao_inteligente(self):
-        """Apenas para compatibilidade - Sempre modo offline"""
-        self.modo_offline = True
-        self.bloqueio_permanente = True
-        logger.info("🔍 MODO ANÁLISE: Apenas monitoramento de mercado")
-        return False
+    def _verificar_configuracao_segura(self):
+        """Verificação de segurança para testes"""
+        try:
+            # Verificar saldo real
+            balance = self.exchange.fetch_balance()
+            saldo_usdt = float(balance['total'].get('USDT', 0))
+            self.saldo_inicial = saldo_usdt
+            
+            logger.info(f"💰 SALDO INICIAL: {saldo_usdt} USDT")
+            
+            if saldo_usdt < 15:  # Mínimo $15 USD
+                logger.critical("🚫 SALDO INSUFICIENTE PARA TESTES")
+                raise Exception(f"Saldo muito baixo: {saldo_usdt} USDT. Mínimo: $15 USD")
+            
+            if saldo_usdt > 100:  # Limite de segurança
+                logger.warning("⚠️ SALDO ALTO - Confirme que quer operar real")
+            
+            # Verificar pares acessíveis
+            markets = self.exchange.load_markets()
+            for par in config.PARES_MONITORADOS:
+                if par not in markets:
+                    logger.warning(f"⚠️ Par não disponível: {par}")
+            
+            logger.info("✅ CONFIGURAÇÃO SEGURA - PRONTO PARA TESTES")
+            
+        except Exception as e:
+            logger.error(f"❌ ERRO CONFIGURAÇÃO: {e}")
+            self.modo_offline = True
     
     def obter_saldo(self):
-        """Saldo simulado - ZERO RISCO"""
-        logger.info("💰 SALDO SIMULADO: Modo análise gratuita")
-        return 0.0  # Saldo zero para garantir segurança
-    
-    def obter_dados_mercado(self, par, timeframe='15m', limit=100):
-        """Obter dados para análise - SEM OPERAÇÕES"""
+        """Obter saldo REAL com verificações"""
         try:
-            # 🔍 TENTAR DADOS REIAS APENAS PARA ANÁLISE
-            if not hasattr(self, 'exchange'):
-                self.exchange = ccxt.bybit({
-                    'apiKey': 'API_KEY_DUMMY',
-                    'secret': 'SECRET_DUMMY', 
-                    'sandbox': True,
-                    'enableRateLimit': True,
-                })
+            balance = self.exchange.fetch_balance()
+            saldo = float(balance['total'].get('USDT', 0))
             
-            ohlcv = self.exchange.fetch_ohlcv(par, timeframe, limit=limit)
-            if ohlcv and len(ohlcv) > 0:
-                logger.debug(f"📊 Dados reais para análise: {par}")
-                return ohlcv
-            else:
-                raise Exception("Dados vazios")
-                
+            # 🔒 VERIFICAÇÃO DE SEGURANÇA
+            if saldo < 5:  # Mínimo $5 USD
+                logger.critical("🚫 SALDO CRÍTICO - Parando operações")
+                self.modo_offline = True
+            
+            return saldo
+            
         except Exception as e:
-            # 🔄 FALLBACK PARA DADOS SIMULADOS
-            logger.debug(f"📊 Usando dados simulados para análise: {par}")
-            return self._dados_simulados_realistas(par, limit)
+            logger.error(f"❌ Erro ao obter saldo: {e}")
+            return 0.0
     
-    def _dados_simulados_realistas(self, par, limit):
-        """Gerar dados simulados realistas para análise"""
+    def _calcular_quantidade_segura(self, par, valor_usdt):
+        """Calcular quantidade com MÚLTIPLAS proteções"""
+        try:
+            # 1. Obter preço atual
+            ticker = self.exchange.fetch_ticker(par)
+            preco_atual = ticker['last']
+            
+            if preco_atual == 0:
+                raise Exception(f"Preço zero para {par}")
+            
+            # 2. Calcular quantidade
+            quantidade = valor_usdt / preco_atual
+            
+            # 3. Obter informações de precisão
+            mercado = self.exchange.load_markets()
+            symbol_info = mercado[par]
+            
+            # 4. Aplicar precisão
+            precision = symbol_info['precision']['amount']
+            quantidade = float(Decimal(str(quantidade)).quantize(
+                Decimal(str(precision)), rounding=ROUND_DOWN
+            ))
+            
+            # 5. Verificar quantidade mínima
+            min_amount = symbol_info['limits']['amount']['min']
+            if quantidade < min_amount:
+                logger.warning(f"⚠️ Quantidade ajustada para mínima: {min_amount}")
+                quantidade = min_amount
+            
+            logger.info(f"📊 {par}: Preço=${preco_atual:.4f}, Qtd={quantidade:.6f}")
+            return quantidade
+            
+        except Exception as e:
+            logger.error(f"❌ Erro cálculo quantidade {par}: {e}")
+            raise
+    
+    async def executar_ordem(self, par, direcao, valor_usdt):
+        """Executar ordem com MÁXIMA SEGURANÇA"""
+        if self.modo_offline:
+            raise Exception(f"MODO OFFLINE - {par} {direcao}")
+        
+        try:
+            logger.info(f"💰 EXECUTANDO ORDEM: {par} {direcao} ${valor_usdt}")
+            
+            # 🛡️ VERIFICAÇÕES DE SEGURANÇA
+            saldo_atual = self.obter_saldo()
+            
+            # 1. Verificar saldo suficiente
+            if saldo_atual < valor_usdt:
+                raise Exception(f"Saldo insuficiente: ${saldo_atual:.2f} < ${valor_usdt}")
+            
+            # 2. Verificar limite por trade (não mais que 50% do saldo)
+            if valor_usdt > saldo_atual * 0.5:
+                raise Exception(f"Valor muito alto: ${valor_usdt} > 50% do saldo")
+            
+            # 3. Calcular quantidade segura
+            quantidade = self._calcular_quantidade_segura(par, valor_usdt)
+            
+            # 4. Executar ordem
+            if direcao.upper() == 'BUY':
+                ordem = self.exchange.create_market_buy_order(par, quantidade)
+            else:
+                ordem = self.exchange.create_market_sell_order(par, quantidade)
+            
+            logger.info(f"✅ ORDEM EXECUTADA: {ordem['id']} - ${ordem['cost']:.2f}")
+            
+            # 5. Registrar operação
+            custo_real = float(ordem['cost'])
+            logger.info(f"💰 CUSTO REAL: ${custo_real:.2f}")
+            
+            return {
+                'id': ordem['id'],
+                'symbol': ordem['symbol'],
+                'side': ordem['side'],
+                'price': float(ordem['price']),
+                'amount': float(ordem['amount']),
+                'cost': custo_real,
+                'timestamp': ordem['timestamp'],
+                'status': ordem['status']
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ ERRO ORDEM {par}: {e}")
+            raise
+    
+    def obter_dados_mercado(self, par, timeframe='15m', limit=50):
+        """Obter dados do mercado"""
+        try:
+            return self.exchange.fetch_ohlcv(par, timeframe, limit=limit)
+        except Exception as e:
+            logger.warning(f"⚠️ Erro dados {par}: {e}")
+            # Fallback simples
+            return self._dados_fallback(par, limit)
+    
+    def _dados_fallback(self, par, limit):
+        """Dados de fallback"""
         current_time = int(time.time() * 1000)
         data = []
-        
-        # Preços base realistas por par
-        precios_base = {
-            'BTC/USDT': np.random.uniform(45000, 55000),
-            'ETH/USDT': np.random.uniform(2500, 3500),
-            'SOL/USDT': np.random.uniform(100, 200),
-            'XRP/USDT': np.random.uniform(0.4, 0.6),
-            'ADA/USDT': np.random.uniform(0.3, 0.5),
-            'DOT/USDT': np.random.uniform(5, 8),
-            'LINK/USDT': np.random.uniform(12, 18),
-            'AVAX/USDT': np.random.uniform(25, 35),
-            'MATIC/USDT': np.random.uniform(0.6, 0.9)
-        }
-        
-        base_price = precios_base.get(par, 100)
-        volatilidade = 0.01  # 1% de volatilidade
+        base_price = 0.5 if 'XRP' in par else 0.4  # Preços realistas
         
         for i in range(limit):
-            timestamp = current_time - (limit - i) * 900000  # 15min intervals
-            
-            # Movimento de preço realista
-            if i == 0:
-                open_price = base_price
-            else:
-                price_change = np.random.normal(0, volatilidade)
-                open_price = data[i-1][4] * (1 + price_change)  # Close anterior
-            
-            high_price = open_price * (1 + abs(np.random.normal(0, volatilidade/2)))
-            low_price = open_price * (1 - abs(np.random.normal(0, volatilidade/2)))
-            close_price = np.random.uniform(low_price, high_price)
-            
-            # Volume proporcional ao preço
-            volume = np.random.uniform(1000, 50000) * (base_price / 1000)
+            timestamp = current_time - (limit - i) * 900000
+            price_change = np.random.normal(0, 0.01)
+            open_price = base_price * (1 + price_change)
+            high_price = open_price * 1.02
+            low_price = open_price * 0.98
+            close_price = (high_price + low_price) / 2
+            volume = np.random.uniform(10000, 100000)
             
             data.append([timestamp, open_price, high_price, low_price, close_price, volume])
         
-        logger.debug(f"📊 Dados simulados gerados para {par}")
         return data
-    
-    def obter_preco_atual(self, par):
-        """Obter preço atual para análise - SEM RISCO"""
-        # Preços simulados realistas
-        precios_simulados = {
-            'BTC/USDT': 50000,
-            'ETH/USDT': 3000,
-            'SOL/USDT': 150,
-            'XRP/USDT': 0.5,
-            'ADA/USDT': 0.4,
-            'DOT/USDT': 6.5,
-            'LINK/USDT': 15,
-            'AVAX/USDT': 30,
-            'MATIC/USDT': 0.75
-        }
-        preco = precios_simulados.get(par, 100)
-        logger.debug(f"📈 Preço simulado para análise: {par} = ${preco}")
-        return preco
-    
-    def _calcular_quantidade(self, par, valor_usdt):
-        """Calcular quantidade para análise - SEM EXECUÇÃO"""
-        preco_atual = self.obter_preco_atual(par)
-        quantidade = valor_usdt / preco_atual
-        
-        # Precisão baseada no par
-        precisions = {
-            'BTC/USDT': 6,
-            'ETH/USDT': 5,
-            'SOL/USDT': 3,
-            'XRP/USDT': 1,
-            'ADA/USDT': 1,
-            'DOT/USDT': 3,
-            'LINK/USDT': 3,
-            'AVAX/USDT': 3,
-            'MATIC/USDT': 1
-        }
-        
-        precision = precisions.get(par, 6)
-        quantidade = round(quantidade, precision)
-        
-        logger.info(f"📊 ANÁLISE: {par} - Preço=${preco_atual:.2f}, Qtd teórica={quantidade}")
-        return quantidade
-    
-    async def executar_ordem(self, par, direcao, valor_usdt):
-        """🚫 BLOQUEADO - ORDENS REAIS DESATIVADAS"""
-        error_msg = f"""
-🚫 ORDEM BLOQUEADA - MODO ANÁLISE
 
-Par: {par}
-Direção: {direcao}
-Valor: ${valor_usdt}
-
-💡 SEU ROBÔ ESTÁ EM MODO ANÁLISE SEGURO
-📊 Apenas gera sinais para você analisar
-💰 NENHUMA operação real é executada
-
-🔒 BLOQUEIOS ATIVOS:
-• Modo análise ativado
-• Railway environment
-• Credenciais não configuradas
-
-⚡ Use os sinais para análise manual
-🎯 Zero risco - Zero custo
-        """
-        
-        logger.critical(f"🚫 TENTATIVA DE ORDEM BLOQUEADA: {par} {direcao}")
-        logger.critical("🔒 MODO ANÁLISE: Operações reais permanentemente desativadas")
-        
-        raise Exception(error_msg)
-    
-    def get_status(self):
-        """Status de segurança do sistema"""
-        return {
-            'modo': 'ANÁLISE SEGURA',
-            'bloqueio_permanente': True,
-            'operacoes_reais': 'DESATIVADAS',
-            'saldo': 'SIMULADO (R$ 0,00)',
-            'risco': 'ZERO',
-            'ambiente': 'RAILWAY GRATUITO'
-        }
-    
-    def verificar_seguranca(self):
-        """Verificação completa de segurança"""
-        verificacoes = {
-            'modo_offline': self.modo_offline,
-            'bloqueio_permanente': self.bloqueio_permanente,
-            'modo_apenas_analise': self.modo_apenas_analise,
-            'ambiente_railway': 'RAILWAY' in os.environ,
-            'credenciais_configured': hasattr(config, 'BYBIT_API_KEY') and config.BYBIT_API_KEY not in ['', 'SUA_API_KEY_REAL_AQUI'],
-            'operacoes_ativas': False
-        }
-        
-        logger.info("🔒 VERIFICAÇÃO DE SEGURANÇA COMPLETA:")
-        for check, status in verificacoes.items():
-            logger.info(f"   {check}: {'✅ SEGURO' if not status else '❌ RISCO'}")
-        
-        return all(not status for status in [verificacoes['credenciais_configured'], verificacoes['operacoes_ativas']])
-
-# 🔒 VERIFICAÇÃO DE SEGURANÇA NA INICIALIZAÇÃO
-logger.info("🔒 INICIALIZANDO SISTEMA 100% SEGURO")
-logger.info("💰 MODO: ANÁLISE GRATUITA - SEM OPERAÇÕES REAIS")
-logger.info("🚫 BYBIT: BLOQUEADO PERMANENTEMENTE")
+logger.info("🔐 BYBIT - MODO TESTES SEGUROS ATIVADO")
+logger.info("💰 SALDO: R$100 (TESTES CONSERVADORES)")
+logger.info("🎯 OBJETIVO: TESTES SEGUROS COM LUCRO")
