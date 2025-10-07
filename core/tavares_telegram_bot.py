@@ -6,13 +6,18 @@ from datetime import datetime, timedelta
 from telegram import Bot
 from telegram.ext import Application, CommandHandler, ContextTypes
 import time
+import os
 
 logger = logging.getLogger('TavaresTelegram')
 
 class TavaresTelegramBot:
-    """TAVARES A EVOLUÇÃO - BYBIT REAL SEM CUSTOS"""
+    """TAVARES A EVOLUÇÃO - Sistema completo de trading"""
     
     def __init__(self):
+        # 🔥 VERIFICAÇÃO DE INSTÂNCIA ÚNICA
+        self._instance_id = f"tavares_{int(time.time())}"
+        logger.info(f"🤖 Inicializando TAVARES - ID: {self._instance_id}")
+        
         # 🧠 Sistema Neural
         from cerebro.rede_neural_simples import CerebroNeuralSimples
         from cerebro.analise_sentimentos import AnalisadorSentimentos
@@ -20,19 +25,9 @@ class TavaresTelegramBot:
         self.cerebro = CerebroNeuralSimples()
         self.analisador_sentimentos = AnalisadorSentimentos()
         
-        # 💰 Bybit Real - COM TENTATIVA AGressiva
-        self.exchange_ok = False
-        self.bybit = None
-        
-        try:
-            from core.exchange_manager import BybitManager
-            self.bybit = BybitManager()
-            self.exchange_ok = True
-            logger.info("✅ BYBIT REAL - CONECTADO COM SUCESSO!")
-        except Exception as e:
-            logger.error(f"❌ Falha na conexão Bybit: {e}")
-            # 🔥 CONTINUAR MESMO COM ERRO - TENTAR RECONEXÃO AUTOMÁTICA
-            self._criar_manager_emergencia()
+        # 💰 Bybit Manager
+        from core.exchange_manager import BybitManager
+        self.bybit = BybitManager()
         
         # 🤖 Telegram
         from core.config import config
@@ -40,10 +35,11 @@ class TavaresTelegramBot:
         self.bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
         self.chat_id = config.TELEGRAM_CHAT_ID
         
-        # 📊 Estado do Bot
+        # 📊 Estado do Sistema
         self.estado = {
+            'id': self._instance_id,
             'status': '🟢 INICIANDO',
-            'modo': 'BYBIT REAL 💰' if self.exchange_ok else '🟡 AGUARDANDO BYBIT',
+            'modo': 'BYBIT REAL 💰',
             'ciclo_atual': 0,
             'ultima_atualizacao': datetime.now().isoformat(),
             'performance': {
@@ -51,80 +47,15 @@ class TavaresTelegramBot:
                 'operacoes_executadas': 0,
                 'operacoes_lucrativas': 0,
                 'lucro_total': 0.0,
-                'saldo_atual': 0.0,
+                'saldo_atual': self.bybit.obter_saldo(),
                 'win_rate': 0.0
             },
             'sentimento_mercado': {},
             'historico_operacoes': [],
-            'exchange_status': '✅ CONECTADO' if self.exchange_ok else '🔄 RECONECTANDO'
+            'bybit_status': 'ONLINE' if not self.bybit.modo_offline else 'OFFLINE'
         }
         
-        # 🔥 TENTAR RECUPERAR SALDO SE CONECTADO
-        if self.exchange_ok:
-            try:
-                saldo = self.bybit.obter_saldo()
-                self.estado['performance']['saldo_atual'] = saldo
-                logger.info(f"💰 Saldo inicial: {saldo} USDT")
-            except:
-                pass
-        
-        logger.info("🤖 TAVARES TELEGRAM BYBIT REAL - INICIALIZADO!")
-    
-    def _criar_manager_emergencia(self):
-        """Criar manager de emergência para evitar crash"""
-        class BybitManagerEmergencia:
-            def __init__(self):
-                self.tentativas = 0
-                self.ultima_tentativa = time.time()
-            
-            def obter_saldo(self):
-                # 🔥 TENTAR RECONECTAR A CADA CHAMADA
-                if time.time() - self.ultima_tentativa > 60:  # A cada 1 minuto
-                    self._tentar_reconexao()
-                return 0.0
-            
-            def obter_dados_mercado(self, par, timeframe='15m', limit=100):
-                if time.time() - self.ultima_tentativa > 60:
-                    self._tentar_reconexao()
-                return self._dados_simulados(limit)
-            
-            def executar_ordem(self, par, direcao, valor_usdt):
-                logger.warning(f"⚠️ ORDEM BLOQUEADA: {par} {direcao} - Bybit offline")
-                return None
-            
-            def _tentar_reconexao(self):
-                """Tentar reconectar com Bybit"""
-                try:
-                    from core.exchange_manager import BybitManager
-                    self.ultima_tentativa = time.time()
-                    # Não atribuir diretamente, apenas testar
-                    manager_test = BybitManager()
-                    logger.info("🎯 RECONEXÃO BYBIT BEM-SUCEDIDA!")
-                    return True
-                except Exception as e:
-                    logger.warning(f"🔄 Falha na reconexão Bybit: {e}")
-                    return False
-            
-            def _dados_simulados(self, limit):
-                """Dados simulados temporários"""
-                current_time = int(time.time() * 1000)
-                data = []
-                base_price = 50000
-                
-                for i in range(limit):
-                    timestamp = current_time - (limit - i) * 900000
-                    open_price = base_price + i * 10
-                    high_price = open_price + 50
-                    low_price = open_price - 30
-                    close_price = open_price + 20
-                    volume = 1000 + i * 10
-                    
-                    data.append([timestamp, open_price, high_price, low_price, close_price, volume])
-                
-                return data
-        
-        self.bybit = BybitManagerEmergencia()
-        logger.info("🔄 Modo emergência ativado - tentando reconexão automática")
+        logger.info("🤖 TAVARES INICIALIZADO COM SUCESSO!")
         
     async def enviar_mensagem(self, texto):
         """Enviar mensagem para o Telegram"""
@@ -167,17 +98,27 @@ class TavaresTelegramBot:
     
     async def executar_operacao_real(self, previsao):
         """Executar operação REAL na Bybit"""
-        if not self.exchange_ok:
-            await self.enviar_mensagem(f"⚠️ <b>BYBIT OFFLINE</b>\nOperação {previsao['par']} {previsao['direcao']} cancelada")
-            return None
-            
         try:
             logger.info(f"💰 EXECUTANDO OPERAÇÃO REAL: {previsao['par']} {previsao['direcao']}")
+            
+            # Verificar se Bybit está online
+            if self.bybit.modo_offline:
+                await self.enviar_mensagem(
+                    f"🚫 <b>BYBIT OFFLINE</b>\n\n"
+                    f"Operação {previsao['par']} {previsao['direcao']} cancelada.\n"
+                    f"💡 <i>Configure VPS para operação real</i>"
+                )
+                return None
             
             # Verificar saldo
             saldo_atual = self.bybit.obter_saldo()
             if saldo_atual < self.config.VALOR_POR_TRADE:
-                await self.enviar_mensagem(f"⚠️ <b>SALDO INSUFICIENTE</b>\nSaldo: ${saldo_atual:.2f}\nNecessário: ${self.config.VALOR_POR_TRADE}")
+                await self.enviar_mensagem(
+                    f"⚠️ <b>SALDO INSUFICIENTE</b>\n\n"
+                    f"Saldo: ${saldo_atual:.2f}\n"
+                    f"Necessário: ${self.config.VALOR_POR_TRADE}\n"
+                    f"Operação cancelada."
+                )
                 return None
             
             # Executar ordem na Bybit
@@ -208,29 +149,32 @@ class TavaresTelegramBot:
                 
                 return operacao
             else:
-                await self.enviar_mensagem(f"❌ <b>FALHA NA ORDEM REAL</b>\nPar: {previsao['par']}\nErro: Não executada")
+                await self.enviar_mensagem(
+                    f"❌ <b>FALHA NA ORDEM REAL</b>\n\n"
+                    f"Par: {previsao['par']}\n"
+                    f"Erro: Ordem não executada"
+                )
                 return None
                 
         except Exception as e:
             logger.error(f"❌ ERRO OPERAÇÃO REAL: {e}")
-            await self.enviar_mensagem(f"💥 <b>ERRO CRÍTICO</b>\n{e}")
+            await self.enviar_mensagem(
+                f"💥 <b>ERRO NA ORDEM</b>\n\n"
+                f"Par: {previsao['par']}\n"
+                f"Erro: {str(e)[:100]}..."
+            )
             return None
     
-    async def executar_ciclo_trading_real(self):
-        """Executar ciclo de trading REAL"""
+    async def executar_ciclo_trading(self):
+        """Executar ciclo completo de trading"""
         try:
             self.estado['ciclo_atual'] += 1
             self.estado['performance']['total_ciclos'] += 1
             
             logger.info(f"🔮 CICLO {self.estado['ciclo_atual']} - TAVARES ANALISANDO...")
             
-            # 🔥 VERIFICAR SE BYBIT VOLTOU
-            if not self.exchange_ok and hasattr(self.bybit, '_tentar_reconexao'):
-                if self.bybit._tentar_reconexao():
-                    self.exchange_ok = True
-                    self.estado['modo'] = 'BYBIT REAL 💰'
-                    self.estado['exchange_status'] = '✅ CONECTADO'
-                    await self.enviar_mensagem("🎉 <b>BYBIT RECONECTADO!</b>\nSistema operando em modo REAL!")
+            # 🔄 ATUALIZAR STATUS BYBIT
+            self.estado['bybit_status'] = 'ONLINE' if not self.bybit.modo_offline else 'OFFLINE'
             
             # 1. 📰 ANÁLISE DE SENTIMENTOS
             await self._analisar_sentimentos_mercado()
@@ -241,19 +185,14 @@ class TavaresTelegramBot:
             # 3. 🎯 PREVISÃO NEURAL
             previsoes = await self._gerar_previsoes_neurais(dados_mercado)
             
-            # 4. ⚡ EXECUTAR OPERAÇÕES REAIS (apenas se exchange estiver OK)
-            if self.exchange_ok:
-                await self._executar_operacoes_reais(previsoes)
-            else:
-                # 🔥 MODO TREINAMENTO - ANALISAR SEM EXECUTAR
-                for previsao in previsoes:
-                    if previsao['confianca'] >= self.config.CONFIANCA_MINIMA and previsao['direcao'] != 'HOLD':
-                        logger.info(f"🎯 SINAL (TREINAMENTO): {previsao['par']} {previsao['direcao']} ({previsao['confianca']}%)")
+            # 4. ⚡ EXECUTAR OPERAÇÕES
+            await self._executar_operacoes(previsoes)
             
-            self.estado['status'] = '🟢 OPERANDO' if self.exchange_ok else '🟡 AGUARDANDO BYBIT'
+            # 5. 📊 ATUALIZAR ESTADO
+            self.estado['status'] = '🟢 OPERANDO'
             self.estado['ultima_atualizacao'] = datetime.now().isoformat()
             
-            # 5. 📊 RELATÓRIO PERIÓDICO
+            # 6. 📋 RELATÓRIO PERIÓDICO
             if self.estado['ciclo_atual'] % 10 == 0:
                 await self.enviar_relatorio_diario()
             
@@ -266,10 +205,14 @@ class TavaresTelegramBot:
         try:
             sentimento = self.analisador_sentimentos.analisar_sentimento_mercado()
             self.estado['sentimento_mercado'] = sentimento
-            logger.info(f"📊 Sentimento do mercado: {sentimento.get('sentimento_geral', 'N/A')}")
+            logger.info(f"📊 Sentimento: {sentimento.get('sentimento_geral', 'N/A')}")
         except Exception as e:
             logger.error(f"❌ Erro sentimentos: {e}")
-            self.estado['sentimento_mercado'] = {'sentimento_geral': 'NEUTRO', 'score_medio': 0}
+            self.estado['sentimento_mercado'] = {
+                'sentimento_geral': 'NEUTRO', 
+                'score_medio': 0,
+                'timestamp': datetime.now().isoformat()
+            }
     
     async def _coletar_dados_reais(self):
         """Coletar dados do mercado"""
@@ -284,19 +227,19 @@ class TavaresTelegramBot:
                         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
                         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
                         dados[par] = {'15m': df}
-                        logger.info(f"✅ Dados coletados: {par}")
+                        logger.debug(f"✅ Dados coletados: {par}")
                     else:
                         logger.warning(f"⚠️ Dados vazios para {par}")
                         continue
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ Erro dados {par}: {e}")
+                    logger.warning(f"⚠️ Erro ao coletar dados {par}: {e}")
                     continue
             
             return dados
             
         except Exception as e:
-            logger.error(f"❌ Erro geral coleta dados: {e}")
+            logger.error(f"❌ Erro geral na coleta de dados: {e}")
             return {}
     
     async def _gerar_previsoes_neurais(self, dados_mercado):
@@ -317,24 +260,30 @@ class TavaresTelegramBot:
                     logger.info(f"🎯 {par}: {previsao['direcao']} ({previsao['confianca']:.1f}%)")
                     
                 except Exception as e:
-                    logger.error(f"❌ Erro previsão {par}: {e}")
+                    logger.error(f"❌ Erro na previsão {par}: {e}")
                     continue
         
         return previsoes
     
-    async def _executar_operacoes_reais(self, previsoes):
-        """Executar operações REAIS"""
+    async def _executar_operacoes(self, previsoes):
+        """Executar operações baseadas nas previsões"""
         try:
             for previsao in previsoes:
-                # Critério conservador para operações reais
+                # Critério conservador para operações
                 if (previsao['confianca'] >= self.config.CONFIANCA_MINIMA and 
                     previsao['direcao'] != 'HOLD'):
                     
-                    await self.executar_operacao_real(previsao)
+                    if not self.bybit.modo_offline:
+                        # MODO REAL - Executar ordem
+                        await self.executar_operacao_real(previsao)
+                    else:
+                        # MODO OFFLINE - Apenas registrar sinal
+                        logger.info(f"🎯 SINAL (OFFLINE): {previsao['par']} {previsao['direcao']} ({previsao['confianca']:.1f}%)")
+                    
                     await asyncio.sleep(2)  # Delay entre operações
                     
         except Exception as e:
-            logger.error(f"❌ Erro execução real: {e}")
+            logger.error(f"❌ Erro na execução: {e}")
     
     async def enviar_relatorio_diario(self):
         """Enviar relatório diário"""
@@ -348,19 +297,19 @@ class TavaresTelegramBot:
             else:
                 win_rate = 0
             
-            status_emoji = "🟢" if self.exchange_ok else "🟡"
-            status_text = "OPERANDO REAL" if self.exchange_ok else "AGUARDANDO BYBIT"
+            status_bybit = "🟢 ONLINE" if not self.bybit.modo_offline else "🔴 OFFLINE"
             
             mensagem = f"""
 📊 <b>RELATÓRIO TAVARES</b>
 
-<b>Status:</b> {status_emoji} {status_text}
-<b>Ciclos:</b> {perf['total_ciclos']}
-<b>Operações:</b> {perf['operacoes_executadas']}
+<b>Status Sistema:</b> {self.estado['status']}
+<b>Status Bybit:</b> {status_bybit}
+<b>Ciclos Executados:</b> {perf['total_ciclos']}
+<b>Operações Realizadas:</b> {perf['operacoes_executadas']}
 <b>Win Rate:</b> {win_rate:.1f}%
-<b>Saldo:</b> <b>${perf['saldo_atual']:.2f}</b>
+<b>Saldo Atual:</b> <b>${perf['saldo_atual']:.2f}</b>
 
-<b>Mercado:</b>
+<b>Análise de Mercado:</b>
 • Sentimento: {sentimento.get('sentimento_geral', 'N/A')}
 • Score: {sentimento.get('score_medio', 0):.3f}
 
@@ -370,29 +319,29 @@ class TavaresTelegramBot:
             await self.enviar_mensagem(mensagem)
             
         except Exception as e:
-            logger.error(f"❌ Erro relatório: {e}")
+            logger.error(f"❌ Erro no relatório: {e}")
     
     # COMANDOS TELEGRAM
     async def comando_start(self, update, context):
         """Comando /start"""
-        status = "🟢 BYBIT CONECTADO" if self.exchange_ok else "🟡 AGUARDANDO BYBIT"
+        status_bybit = "🟢 CONECTADO" if not self.bybit.modo_offline else "🔴 OFFLINE"
         
         mensagem = f"""
-🤖 <b>TAVARES A EVOLUÇÃO - BYBIT REAL</b> 🚀
+🤖 <b>TAVARES A EVOLUÇÃO</b> 🚀
 
-<b>Status:</b> {status}
+<b>Status Bybit:</b> {status_bybit}
 <b>Modo:</b> OPERAÇÃO REAL
 <b>Estratégia:</b> Neural + Análise Técnica
 <b>Risco:</b> 1% por trade
 
-<b>Comandos disponíveis:</b>
-/status - Status do sistema
-/saldo - Saldo real
+<b>Comandos Disponíveis:</b>
+/status - Status completo
+/saldo - Saldo atual
 /operacoes - Histórico
 /performance - Performance
 /sentimento - Análise de mercado
 
-⚡ <i>Pronto para operar!</i>
+⚡ <i>Sistema ativo e monitorando</i>
         """
         await update.message.reply_text(mensagem, parse_mode='HTML')
     
@@ -401,14 +350,13 @@ class TavaresTelegramBot:
         perf = self.estado['performance']
         sentimento = self.estado['sentimento_mercado']
         
-        status_emoji = "🟢" if self.exchange_ok else "🟡"
-        status_text = "CONECTADO" if self.exchange_ok else "RECONECTANDO"
+        status_bybit = "🟢 ONLINE" if not self.bybit.modo_offline else "🔴 OFFLINE"
         
         mensagem = f"""
-💰 <b>STATUS TAVARES BYBIT</b>
+💰 <b>STATUS TAVARES</b>
 
-<b>Exchange:</b> {status_emoji} {status_text}
-<b>Status:</b> {self.estado['status']}
+<b>Sistema:</b> {self.estado['status']}
+<b>Bybit:</b> {status_bybit}
 <b>Ciclos:</b> {perf['total_ciclos']}
 <b>Operações:</b> {perf['operacoes_executadas']}
 <b>Saldo:</b> <code>${perf['saldo_atual']:.2f}</code>
@@ -417,24 +365,20 @@ class TavaresTelegramBot:
 • Sentimento: {sentimento.get('sentimento_geral', 'N/A')}
 • Score: {sentimento.get('score_medio', 0):.3f}
 
-🔄 <i>Sistema resiliente ativo</i>
+🔄 <i>Última atualização: {self.estado['ultima_atualizacao'][11:19]}</i>
         """
         
         await update.message.reply_text(mensagem, parse_mode='HTML')
     
     async def comando_saldo(self, update, context):
         """Comando /saldo"""
-        try:
-            saldo = self.bybit.obter_saldo() if self.exchange_ok else 0.0
-        except:
-            saldo = 0.0
-        
-        status = "✅ BYBIT CONECTADO" if self.exchange_ok else "🔄 RECONECTANDO"
+        saldo = self.bybit.obter_saldo()
+        status_bybit = "🟢 ONLINE" if not self.bybit.modo_offline else "🔴 OFFLINE"
         
         mensagem = f"""
 💰 <b>SALDO BYBIT</b>
 
-<b>Status:</b> {status}
+<b>Status:</b> {status_bybit}
 <b>Saldo Disponível:</b> <code>${saldo:.2f}</code>
 <b>Valor por Trade:</b> <code>${self.config.VALOR_POR_TRADE}</code>
 <b>Risco por Trade:</b> <code>{self.config.RISK_PER_TRADE*100}%</code>
@@ -488,7 +432,7 @@ ID: <code>{resultado.get('id', 'N/A')}</code>
 • Lucro Total: ${perf['lucro_total']:.2f}
 • Saldo Atual: <b>${perf['saldo_atual']:.2f}</b>
 
-🎯 <i>Estratégia conservadora em execução</i>
+🎯 <i>Estratégia em execução</i>
         """
         
         await update.message.reply_text(mensagem, parse_mode='HTML')
@@ -531,20 +475,20 @@ ID: <code>{resultado.get('id', 'N/A')}</code>
             application.add_handler(CommandHandler("sentimento", self.comando_sentimento))
             application.add_handler(CommandHandler("saldo", self.comando_saldo))
             
-            # Mensagem de boas-vindas
-            status_msg = "✅ BYBIT CONECTADO" if self.exchange_ok else "🔄 AGUARDANDO BYBIT"
+            # Mensagem de inicialização
+            status_bybit = "🟢 CONECTADO" if not self.bybit.modo_offline else "🔴 OFFLINE"
             
             await self.enviar_mensagem(
                 f"🤖 <b>TAVARES A EVOLUÇÃO</b> 🔥\n\n"
-                f"💰 <b>Status:</b> {status_msg}\n"
+                f"💰 <b>Status:</b> {status_bybit}\n"
                 f"🎯 <b>Modo:</b> OPERAÇÃO REAL\n"
-                f"⚡ <b>Estratégia:</b> Neural Resiliente\n\n"
-                f"🧠 <i>Sistema de reconexão automática ativado</i>\n"
-                f"📊 <i>Monitoramento 24/7</i>\n"
+                f"⚡ <b>Estratégia:</b> Neural Avançada\n\n"
+                f"🧠 <i>Sistema inicializado com sucesso</i>\n"
+                f"📊 <i>Monitoramento 24/7 ativo</i>\n"
                 f"🚀 <i>Pronto para operar!</i>"
             )
             
-            logger.info("🤖 Bot Telegram inicializado")
+            logger.info("🤖 Bot Telegram inicializado com sucesso")
             return application
             
         except Exception as e:
@@ -552,8 +496,8 @@ ID: <code>{resultado.get('id', 'N/A')}</code>
             return None
     
     async def executar_continuamente(self):
-        """Executar sistema continuamente com resiliência"""
-        logger.info("🚀 TAVARES BYBIT - INICIANDO SISTEMA RESILIENTE")
+        """Executar sistema continuamente"""
+        logger.info("🚀 TAVARES - INICIANDO SISTEMA PRINCIPAL")
         
         # Iniciar bot Telegram
         telegram_app = await self.iniciar_telegram_bot()
@@ -563,12 +507,12 @@ ID: <code>{resultado.get('id', 'N/A')}</code>
             await telegram_app.start()
             await telegram_app.updater.start_polling()
         
-        # Loop principal resiliente
+        # Loop principal
         while True:
             try:
-                await self.executar_ciclo_trading_real()
+                await self.executar_ciclo_trading()
                 await asyncio.sleep(self.config.INTERVALO_ANALISE)
                 
             except Exception as e:
-                logger.error(f"💥 ERRO CRÍTICO: {e}")
-                await asyncio.sleep(30)
+                logger.error(f"💥 ERRO NO LOOP PRINCIPAL: {e}")
+                await asyncio.sleep(30)  # Espera antes de retry
