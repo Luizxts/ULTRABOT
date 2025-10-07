@@ -7,70 +7,69 @@ from core.config import config
 logger = logging.getLogger('ExchangeManager')
 
 class BybitManager:
-    """Gerenciador de operações reais na Bybit - VERSÃO CORRIGIDA"""
+    """Gerenciador de operações reais na Bybit - MODO REAL DIRETO"""
     
     def __init__(self):
-        # 🔥 CONFIGURAÇÃO BYBIT CORRETA para evitar bloqueio
+        # 🔥 CONFIGURAÇÃO BYBIT REAL
         self.exchange = ccxt.bybit({
             'apiKey': config.BYBIT_API_KEY,
             'secret': config.BYBIT_API_SECRET,
             'sandbox': config.BYBIT_TESTNET,
             'enableRateLimit': True,
             'options': {
-                'defaultType': 'spot',  # Usar spot para evitar problemas
+                'defaultType': 'spot',
                 'adjustForTimeDifference': True,
-            },
-            'urls': {
-                'api': {
-                    'public': 'https://api.bybit.com',  # URL principal
-                    'private': 'https://api.bybit.com',
-                }
             }
         })
         
-        # Verificar conexão de forma mais simples
-        self._verificar_conexao_simples()
+        # 🔥 VERIFICAÇÃO FORÇADA - EXIGE CONEXÃO REAL
+        self._verificar_conexao_real()
         logger.info("💰 BYBIT MANAGER INICIALIZADO - MODO REAL!")
     
-    def _verificar_conexao_simples(self):
-        """Verificar conexão de forma mais simples - evita endpoints bloqueados"""
+    def _verificar_conexao_real(self):
+        """Verificação REAL - para conexão direta"""
         try:
-            # Usar endpoint mais simples para teste
-            markets = self.exchange.load_markets()
-            logger.info(f"✅ Conectado à Bybit - {len(markets)} mercados carregados")
+            # Tentar múltiplos endpoints
+            endpoints = [
+                self.exchange.fetch_balance,
+                lambda: self.exchange.fetch_ticker('BTC/USDT'),
+                self.exchange.load_markets
+            ]
             
-            # Tentar obter saldo de forma segura
-            try:
-                balance = self.exchange.fetch_balance()
-                usdt_balance = balance['total'].get('USDT', 0)
-                logger.info(f"💰 Saldo Bybit: {usdt_balance} USDT")
+            for endpoint in endpoints:
+                try:
+                    result = endpoint()
+                    logger.info(f"✅ Endpoint {endpoint.__name__} funcionando")
+                    break
+                except Exception as e:
+                    continue
+            else:
+                raise Exception("Todos os endpoints falharam")
                 
-                if usdt_balance < config.VALOR_POR_TRADE:
-                    logger.warning(f"⚠️ Saldo insuficiente: {usdt_balance} USDT")
-                
-            except Exception as balance_error:
-                logger.warning(f"⚠️ Não foi possível verificar saldo: {balance_error}")
-                # Continuar mesmo sem saldo - o sistema vai tentar depois
+            # Verificar saldo REAL
+            balance = self.exchange.fetch_balance()
+            usdt_balance = balance['total'].get('USDT', 0)
+            logger.info(f"💰 SALDO BYBIT REAL: {usdt_balance} USDT")
+            
+            if usdt_balance < config.VALOR_POR_TRADE:
+                logger.warning(f"⚠️ Saldo insuficiente para trading: {usdt_balance} USDT")
             
             return True
             
         except Exception as e:
-            logger.error(f"❌ Erro ao conectar com Bybit: {e}")
-            
-            # 🔥 TENTATIVA ALTERNATIVA - Continuar mesmo com erro
-            logger.warning("🔄 Continuando em modo de recuperação...")
-            return True  # Continuar mesmo com erro
+            logger.error(f"❌ FALHA CRÍTICA: Não foi possível conectar à Bybit Real")
+            logger.error(f"❌ Erro: {e}")
+            raise Exception(f"FALHA NA CONEXÃO BYBIT REAL: {e}")
     
     def _calcular_quantidade(self, par, valor_usdt):
         """Calcular quantidade baseada no preço atual"""
         try:
-            # Obter preço atual de forma segura
+            # Obter preço atual
             ticker = self.exchange.fetch_ticker(par)
             preco_atual = ticker['last']
             
             if preco_atual == 0:
-                logger.error(f"❌ Preço zero para {par}")
-                return None
+                raise Exception(f"Preço zero para {par}")
             
             # Calcular quantidade
             quantidade = valor_usdt / preco_atual
@@ -88,26 +87,28 @@ class BybitManager:
             # Verificar quantidade mínima
             min_amount = symbol_info['limits']['amount']['min']
             if quantidade < min_amount:
-                logger.warning(f"⚠️ Quantidade pequena: {quantidade} < {min_amount}")
                 quantidade = min_amount
+                logger.warning(f"⚠️ Ajustada quantidade mínima: {quantidade}")
             
-            logger.info(f"📊 {par}: Preço={preco_atual}, Qtd={quantidade}")
+            logger.info(f"📊 {par}: Preço=${preco_atual}, Qtd={quantidade}")
             return quantidade
             
         except Exception as e:
             logger.error(f"❌ Erro ao calcular quantidade {par}: {e}")
-            return None
+            raise
     
     async def executar_ordem(self, par, direcao, valor_usdt):
         """Executar ordem REAL na Bybit"""
         try:
+            logger.info(f"💰 EXECUTANDO ORDEM REAL: {par} {direcao} ${valor_usdt}")
+            
             # Calcular quantidade
             quantidade = self._calcular_quantidade(par, valor_usdt)
-            if not quantidade:
-                logger.error(f"❌ Não foi possível calcular quantidade para {par}")
-                return None
             
-            logger.info(f"💰 EXECUTANDO ORDEM REAL: {par} {direcao} {quantidade}")
+            # Verificar saldo antes de executar
+            saldo_atual = self.obter_saldo()
+            if saldo_atual < valor_usdt:
+                raise Exception(f"Saldo insuficiente: {saldo_atual} < {valor_usdt}")
             
             # Executar ordem de mercado
             if direcao.upper() == 'BUY':
@@ -115,7 +116,7 @@ class BybitManager:
             else:  # SELL
                 ordem = self.exchange.create_market_sell_order(par, quantidade)
             
-            logger.info(f"✅ ORDEM EXECUTADA: {ordem['id']} - Preço: {ordem['price']}")
+            logger.info(f"✅ ORDEM REAL EXECUTADA: {ordem['id']} - Preço: {ordem['price']}")
             
             return {
                 'id': ordem['id'],
@@ -130,51 +131,37 @@ class BybitManager:
             
         except Exception as e:
             logger.error(f"❌ ERRO EXECUTANDO ORDEM REAL {par}: {e}")
-            return None
+            raise
     
     def obter_saldo(self):
-        """Obter saldo atual - com fallback"""
+        """Obter saldo atual REAL"""
         try:
             balance = self.exchange.fetch_balance()
-            return float(balance['total'].get('USDT', 0))
+            usdt_balance = float(balance['total'].get('USDT', 0))
+            logger.info(f"💰 Saldo atual: {usdt_balance} USDT")
+            return usdt_balance
         except Exception as e:
             logger.error(f"❌ Erro ao obter saldo: {e}")
-            return 100.0  # Fallback para continuar operando
+            raise
     
     def obter_preco_atual(self, par):
         """Obter preço atual do par"""
         try:
             ticker = self.exchange.fetch_ticker(par)
-            return float(ticker['last'])
+            preco = float(ticker['last'])
+            logger.info(f"📈 {par}: ${preco}")
+            return preco
         except Exception as e:
             logger.error(f"❌ Erro ao obter preço {par}: {e}")
-            return None
+            raise
     
     def obter_dados_mercado(self, par, timeframe='15m', limit=100):
-        """Obter dados OHLCV do mercado"""
+        """Obter dados OHLCV do mercado REAL"""
         try:
             ohlcv = self.exchange.fetch_ohlcv(par, timeframe, limit=limit)
+            if not ohlcv:
+                raise Exception(f"Dados vazios para {par}")
             return ohlcv
         except Exception as e:
             logger.error(f"❌ Erro ao obter dados {par}: {e}")
-            # Retornar dados simulados para continuar
-            return self._dados_simulados(limit)
-    
-    def _dados_simulados(self, limit):
-        """Dados simulados para quando a API falha"""
-        import time
-        current_time = int(time.time() * 1000)
-        data = []
-        base_price = 50000  # BTC price base
-        
-        for i in range(limit):
-            timestamp = current_time - (limit - i) * 900000  # 15min intervals
-            open_price = base_price + i * 10
-            high_price = open_price + 50
-            low_price = open_price - 30
-            close_price = open_price + 20
-            volume = 1000 + i * 10
-            
-            data.append([timestamp, open_price, high_price, low_price, close_price, volume])
-        
-        return data
+            raise

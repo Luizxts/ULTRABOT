@@ -6,10 +6,10 @@ load_dotenv()
 class TavaresConfig:
     def __init__(self):
         # 🤖 CONFIGURAÇÕES TELEGRAM
-        self.TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8444269740:AAE2dlSXozV4cIGNMMs72APIDcrYBvIq31M')
-        self.TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '-4977542145')
+        self.TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
         
-        # 💰 BYBIT REAL - SUAS CREDENCIAIS
+        # 💰 BYBIT REAL - DIRETO SEM FALLBACK
         self.BYBIT_API_KEY = os.getenv('BYBIT_API_KEY_REAL')
         self.BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET_REAL')
         self.BYBIT_TESTNET = False  # 🔥 MODO REAL!
